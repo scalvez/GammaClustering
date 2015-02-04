@@ -55,6 +55,10 @@ namespace snemo {
     class particle_track_data;
   }
 
+  namespace geometry {
+    class locator_plugin;
+  }
+
   namespace reconstruction {
 
     /// \brief The data processing module for the gamma clustering
@@ -109,6 +113,9 @@ namespace snemo {
 
       const geomtools::manager * _geometry_manager_; //!< The geometry manager
       std::string _PTD_label_;                       //!< The label of the input/output  data bank
+
+      // Locator plugin
+      const snemo::geometry::locator_plugin * _locator_plugin_;
 
       // Macro to automate the registration of the module :
       DPP_MODULE_REGISTRATION_INTERFACE (gamma_clustering_module);
