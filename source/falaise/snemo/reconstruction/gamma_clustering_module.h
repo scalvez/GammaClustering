@@ -45,10 +45,6 @@
 #include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
 #include <falaise/snemo/datamodels/calibrated_data.h>
 
-namespace geomtools {
-  class manager;
-}
-
 namespace snemo {
 
   namespace datamodel {
@@ -66,18 +62,6 @@ namespace snemo {
     {
 
     public:
-
-      /// Typedef for calorimeters collection
-      typedef std::set<geomtools::geom_id> calo_list_type;
-
-      /// Typedef for gamma dictionnaries
-      typedef std::map<int, calo_list_type> gamma_dict_type;
-
-      /// Setting geometry manager
-      void set_geometry_manager(const geomtools::manager & gmgr_);
-
-      /// Getting geometry manager
-      const geomtools::manager & get_geometry_manager() const;
 
       /// Constructor
       gamma_clustering_module(datatools::logger::priority = datatools::logger::PRIO_FATAL);
@@ -98,27 +82,24 @@ namespace snemo {
 
     protected:
 
-      void _get_new_neighbours(const geomtools::geom_id & gid,
-                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch,
-                               std::vector<geomtools::geom_id>  & ccl,
-                               std::vector<geomtools::geom_id>  & a_cluster);
-
-      /// Special method to process and generate trajectory data
-      void _process(snemo::datamodel::particle_track_data & ptd_, gamma_dict_type & clustered_gammas_);
+      /// Special method to process and generate particle track data
+      void _process(snemo::datamodel::particle_track_data & ptd_);
 
       /// Give default values to specific class members.
       void _set_defaults ();
 
+      void _get_new_neighbours(const geomtools::geom_id & gid_,
+                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch_,
+                               std::vector<geomtools::geom_id> & ccl_,
+                               std::vector<geomtools::geom_id> & cluster_);
+
     private:
 
-      const geomtools::manager * _geometry_manager_; //!< The geometry manager
       std::string _PTD_label_;                       //!< The label of the input/output  data bank
-
-      // Locator plugin
-      const snemo::geometry::locator_plugin * _locator_plugin_;
+      const snemo::geometry::locator_plugin * _locator_plugin_; //!< The locator plugin
 
       // Macro to automate the registration of the module :
-      DPP_MODULE_REGISTRATION_INTERFACE (gamma_clustering_module);
+      DPP_MODULE_REGISTRATION_INTERFACE(gamma_clustering_module);
     };
 
   } // end of namespace reconstruction
