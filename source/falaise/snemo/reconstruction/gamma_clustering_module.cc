@@ -372,8 +372,7 @@ namespace snemo {
               spot.set_hit_id(found->get().get_hit_id());
               spot.set_geom_id(calo_geom_id);
 
-
-              const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
+              const snemo::geometry::calo_locator  & calo_locator   = _locator_plugin_->get_calo_locator();
               const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
               const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
@@ -396,7 +395,6 @@ namespace snemo {
                                             label);
               spot.set_blur_dimension(geomtools::blur_spot::dimension_three);
               spot.set_position(position);
-
             }
         }
 
