@@ -1,5 +1,5 @@
 // -*- mode: c++ ; -*-
-/** \file falaise/snemo/reconstruction/gamma_tracking_module.h
+/** \file falaise/snemo/reconstruction/gamma_clustering_module.h
  * Author(s) :    Xavier Garrido <garrido@lal.in2p3.fr>
  * Creation date: 2012-10-07
  * Last modified: 2014-02-28
@@ -98,13 +98,13 @@ namespace snemo {
 
     protected:
 
-      void _get_new_neighbours(geomtools::geom_id gid,
+      void _get_new_neighbours(const geomtools::geom_id & gid,
                                const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch,
                                std::vector<geomtools::geom_id>  & ccl,
                                std::vector<geomtools::geom_id>  & a_cluster);
 
       /// Special method to process and generate trajectory data
-      void _process(snemo::datamodel::particle_track_data & track_data_, gamma_dict_type & clustered_gammas_);
+      void _process(snemo::datamodel::particle_track_data & ptd_, gamma_dict_type & clustered_gammas_);
 
       /// Give default values to specific class members.
       void _set_defaults ();
