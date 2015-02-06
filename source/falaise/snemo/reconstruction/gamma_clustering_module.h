@@ -62,6 +62,11 @@ namespace snemo {
     {
 
     public:
+      /// Typedef for list of geom ids
+      typedef std::vector<geomtools::geom_id> gid_list_type;
+
+      /// Typedef for time ordered calorimeter hits aka. gamma cluster
+      typedef std::map<double, const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type> cluster_type;
 
       /// Constructor
       gamma_clustering_module(datatools::logger::priority = datatools::logger::PRIO_FATAL);
@@ -88,10 +93,11 @@ namespace snemo {
       /// Give default values to specific class members.
       void _set_defaults ();
 
-      void _get_new_neighbours(const geomtools::geom_id & gid_,
-                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch_,
-                               std::vector<geomtools::geom_id> & ccl_,
-                               std::vector<geomtools::geom_id> & cluster_);
+      /// Get calorimeter neighbours given teh current calorimeter hit
+      void _get_new_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
+                               cluster_type & cluster_,
+                               gid_list_type & registered_calos_) const;
 
     private:
 
