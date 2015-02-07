@@ -32,8 +32,11 @@ namespace snemo {
 
     void gamma_clustering_module::_set_defaults()
     {
-      _locator_plugin_ = 0;
       _PTD_label_ = snemo::datamodel::data_info::default_tracker_clustering_data_label();
+      _locator_plugin_ = 0;
+
+      _cluster_time_range_ = 2.5 * CLHEP::ns;
+      _cluster_grid_mask_ = "first";
       return;
     }
 
@@ -50,6 +53,18 @@ namespace snemo {
 
       if (setup_.has_key("PTD_label")) {
         _PTD_label_ = setup_.fetch_string("PTD_label");
+      }
+
+      std::string key;
+      if (setup_.has_key(key = "cluster.time_range")) {
+        _cluster_time_range_ = setup_.fetch_real(key);
+        if (! setup_.has_explicit_unit(key)) {
+          _cluster_time_range_ *= CLHEP::ns;
+        }
+      }
+
+      if (setup_.has_key(key = "cluster.grid_mask")) {
+        _cluster_grid_mask_ = setup_.fetch_string(key);
       }
 
       // Geometry manager :
@@ -285,12 +300,26 @@ namespace snemo {
       const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
+      uint8_t mask = snemo::geometry::utils::NEIGHBOUR_NONE;
+      if (_cluster_grid_mask_ == "first") {
+        mask = snemo::geometry::utils::NEIGHBOUR_FIRST;
+      } else if (_cluster_grid_mask_ == "second") {
+        mask = snemo::geometry::utils::NEIGHBOUR_SECOND;
+      } else if (_cluster_grid_mask_ == "diagonal") {
+        mask = snemo::geometry::utils::NEIGHBOUR_DIAG;
+      } else if (_cluster_grid_mask_ == "side") {
+        mask = snemo::geometry::utils::NEIGHBOUR_SIDE;
+      } else if (_cluster_grid_mask_ == "none") {
+        mask = snemo::geometry::utils::NEIGHBOUR_NONE;
+      } else {
+        DT_THROW_IF(true, std::logic_error, "Unkown neighbour mask '" << _cluster_grid_mask_ << "' !")
+      }
       if (calo_locator.is_calo_block_in_current_module(a_gid)) {
-        calo_locator.get_neighbours_ids(a_gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
+        calo_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
       } else if (xcalo_locator.is_calo_block_in_current_module(a_gid)) {
-        xcalo_locator.get_neighbours_ids(a_gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
+        xcalo_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
       } else if (gveto_locator.is_calo_block_in_current_module(a_gid)) {
-        gveto_locator.get_neighbours_ids(a_gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
+        gveto_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
       } else {
         DT_THROW_IF(true, std::logic_error,
                     "Current geom id '" << a_gid << "' does not match any scintillator block !");
@@ -335,8 +364,9 @@ namespace snemo {
         const double current_time = it->first;
         const double next_time = boost::next(it)->first;
         const double delta_time = next_time - current_time;
-        if (delta_time > 2.5 * CLHEP::ns) {
-          DT_LOG_TRACE(get_logging_priority(), "Delta time > 2.5 ns !!");
+        if (delta_time > _cluster_time_range_) {
+          DT_LOG_TRACE(get_logging_priority(),
+                       "Delta time > " << _cluster_time_range_/CLHEP::ns << " ns !!");
           break;
         }
       }

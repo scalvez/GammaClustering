@@ -106,8 +106,11 @@ namespace snemo {
 
     private:
 
-      std::string _PTD_label_;                       //!< The label of the input/output  data bank
+      std::string _PTD_label_;                                  //!< The label of the input/output  data bank
       const snemo::geometry::locator_plugin * _locator_plugin_; //!< The locator plugin
+
+      double _cluster_time_range_;     //!< The time condition for clustering
+      std::string _cluster_grid_mask_; //!< The spatial condition for clustering
 
       // Macro to automate the registration of the module :
       DPP_MODULE_REGISTRATION_INTERFACE(gamma_clustering_module);
