@@ -149,7 +149,7 @@ namespace snemo {
       return dpp::base_module::PROCESS_SUCCESS;
     }
 
-    void gamma_clustering_module::_process(snemo::datamodel::particle_track_data  & ptd_)
+    void gamma_clustering_module::_process(snemo::datamodel::particle_track_data & ptd_)
     {
       DT_LOG_TRACE(get_logging_priority(), "Entering...");
 
@@ -160,7 +160,7 @@ namespace snemo {
       gid_list_type registered_calos;
 
       // Getting gamma clusters
-      std::vector<cluster_type> the_reconstructed_clusters;
+      cluster_collection_type the_reconstructed_clusters;
       for (snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
              icalo = cch.begin(); icalo != cch.end(); ++icalo) {
         const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = icalo->get();
@@ -183,8 +183,11 @@ namespace snemo {
         cluster_type & a_cluster = the_reconstructed_clusters.back();
         a_cluster.insert(std::make_pair(a_time, *icalo));
 
-        // Get neighbours given the current geom id
-        _get_new_neighbours(*icalo, cch, a_cluster, registered_calos);
+        // Get geometrical neighbours given the current geom id
+        _get_geometrical_neighbours(*icalo, cch, a_cluster, registered_calos);
+
+        // Ensure all calorimeter hits within a cluster are in time
+        _get_time_neighbours(a_cluster, the_reconstructed_clusters);
       }
 
       if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
@@ -199,6 +202,11 @@ namespace snemo {
         }
       }
 
+      // Set new particles within 'particle track data' container
+      if (ptd_.has_non_associated_calorimeters()) {
+        DT_LOG_DEBUG(get_logging_priority(), "Removing non-associated calorimeters");
+        ptd_.reset_non_associated_calorimeters();
+      }
       for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
         DT_LOG_TRACE(get_logging_priority(), "Adding a new clustered gamma");
         snemo::datamodel::particle_track::handle_type hPT(new snemo::datamodel::particle_track);
@@ -250,10 +258,10 @@ namespace snemo {
       return;
     }
 
-    void gamma_clustering_module::_get_new_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
-                                                      const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
-                                                      cluster_type & cluster_,
-                                                      gid_list_type & registered_calos_) const
+    void gamma_clustering_module::_get_geometrical_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+                                                              const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
+                                                              cluster_type & cluster_,
+                                                              gid_list_type & registered_calos_) const
     {
       const snemo::datamodel::calibrated_calorimeter_hit & a_hit = hit_.get();
       const geomtools::geom_id & a_gid = a_hit.get_geom_id();
@@ -291,27 +299,59 @@ namespace snemo {
       for (gid_list_type::const_iterator ineighbour = the_neighbours.begin();
            ineighbour != the_neighbours.end(); ++ineighbour) {
         const geomtools::geom_id & a_gid = *ineighbour;
+        if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
+            != registered_calos_.end()) {
+          continue;
+        }
 
-        // Find of the eight neighbours belong to calibrated calo. hits
+        // 2015/02/06 SC : using lambda function in C++14 (really easier)
+        // if (std::find_if(cch.begin(), cch.end(), [ineighbour] (auto icalo)
+        //                  {return ineighbour == icalo.get().get_geom_id();}) != cch.end())
+        // Find if the eight neighbours belong to calibrated calo. hits
         geomtools::base_hit::has_geom_id_predicate hit_pred(a_gid);
         datatools::mother_to_daughter_predicate<geomtools::base_hit,
                                                 snemo::datamodel::calibrated_calorimeter_hit> pred_M2D(hit_pred);
         datatools::handle_predicate<snemo::datamodel::calibrated_calorimeter_hit> pred_via_handle(pred_M2D);
         snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
           found = std::find_if(hits_.begin(), hits_.end(), pred_via_handle);
-
-        if (found != hits_.end()) {
-          if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
-              == registered_calos_.end()) {
-            registered_calos_.push_back(a_gid);
-            cluster_.insert(std::make_pair(found->get().get_time(), *found));
-            _get_new_neighbours(*found, hits_, cluster_, registered_calos_);
-          }
+        if (found == hits_.end()) {
+          continue;
         }
-        // 2015/02/06 SC : using lambda function in C++14 (really easier)
-        // if (std::find_if(cch.begin(), cch.end(), [ineighbour] (auto icalo)
-        //                  {return ineighbour == icalo.get().get_geom_id();}) != cch.end())
+
+        registered_calos_.push_back(a_gid);
+        cluster_.insert(std::make_pair(found->get().get_time(), *found));
+        _get_geometrical_neighbours(*found, hits_, cluster_, registered_calos_);
       }
+      return;
+    }
+
+    void gamma_clustering_module::_get_time_neighbours(cluster_type & cluster_,
+                                                       cluster_collection_type & clusters_) const
+    {
+      if (cluster_.size() < 2) return;
+
+      cluster_type::iterator it = cluster_.begin();
+      for (;it != cluster_.end(); ++it) {
+        const double current_time = it->first;
+        const double next_time = boost::next(it)->first;
+        const double delta_time = next_time - current_time;
+        if (delta_time > 2.5 * CLHEP::ns) {
+          DT_LOG_TRACE(get_logging_priority(), "Delta time > 2.5 ns !!");
+          break;
+        }
+      }
+      if (it == cluster_.end()) return;
+
+      // Create a new cluster to be checked later. To be done in this way
+      // i.e. create first a new empty cluster and then add it to the collection
+      // of clusters otherwise clusters_ stays in a frozen state if the cluster
+      // is added first and then filled.
+      cluster_type a_cluster;
+      a_cluster.insert(boost::next(it), cluster_.end());
+      cluster_.erase(boost::next(it), cluster_.end());
+      clusters_.push_back(a_cluster);
+
+      _get_time_neighbours(a_cluster, clusters_);
       return;
     }
 
