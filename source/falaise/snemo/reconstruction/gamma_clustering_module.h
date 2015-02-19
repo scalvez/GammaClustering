@@ -45,10 +45,6 @@
 #include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
 #include <falaise/snemo/datamodels/calibrated_data.h>
 
-namespace geomtools {
-  class manager;
-}
-
 namespace snemo {
 
   namespace datamodel {
@@ -66,18 +62,14 @@ namespace snemo {
     {
 
     public:
+      /// Typedef for list of geom ids
+      typedef std::vector<geomtools::geom_id> gid_list_type;
 
-      /// Typedef for calorimeters collection
-      typedef std::set<geomtools::geom_id> calo_list_type;
+      /// Typedef for time ordered calorimeter hits aka. gamma cluster
+      typedef std::map<double, const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type> cluster_type;
 
-      /// Typedef for gamma dictionnaries
-      typedef std::map<int, calo_list_type> gamma_dict_type;
-
-      /// Setting geometry manager
-      void set_geometry_manager(const geomtools::manager & gmgr_);
-
-      /// Getting geometry manager
-      const geomtools::manager & get_geometry_manager() const;
+      /// Typedef for collection of clusters
+      typedef std::vector<cluster_type> cluster_collection_type;
 
       /// Constructor
       gamma_clustering_module(datatools::logger::priority = datatools::logger::PRIO_FATAL);
@@ -98,27 +90,30 @@ namespace snemo {
 
     protected:
 
-      void _get_new_neighbours(const geomtools::geom_id & gid,
-                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch,
-                               std::vector<geomtools::geom_id>  & ccl,
-                               std::vector<geomtools::geom_id>  & a_cluster);
-
-      /// Special method to process and generate trajectory data
-      void _process(snemo::datamodel::particle_track_data & ptd_, gamma_dict_type & clustered_gammas_);
+      /// Special method to process and generate particle track data
+      void _process(snemo::datamodel::particle_track_data & ptd_);
 
       /// Give default values to specific class members.
       void _set_defaults ();
 
+      /// Get calorimeter neighbours given teh current calorimeter hit
+      void _get_geometrical_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+                                       const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
+                                       cluster_type & cluster_,
+                                       gid_list_type & registered_calos_) const;
+
+      void _get_time_neighbours(cluster_type & cluster_, cluster_collection_type & clusters_) const;
+
     private:
 
-      const geomtools::manager * _geometry_manager_; //!< The geometry manager
-      std::string _PTD_label_;                       //!< The label of the input/output  data bank
+      std::string _PTD_label_;                                  //!< The label of the input/output  data bank
+      const snemo::geometry::locator_plugin * _locator_plugin_; //!< The locator plugin
 
-      // Locator plugin
-      const snemo::geometry::locator_plugin * _locator_plugin_;
+      double _cluster_time_range_;     //!< The time condition for clustering
+      std::string _cluster_grid_mask_; //!< The spatial condition for clustering
 
       // Macro to automate the registration of the module :
-      DPP_MODULE_REGISTRATION_INTERFACE (gamma_clustering_module);
+      DPP_MODULE_REGISTRATION_INTERFACE(gamma_clustering_module);
     };
 
   } // end of namespace reconstruction
