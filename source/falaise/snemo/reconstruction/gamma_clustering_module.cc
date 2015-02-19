@@ -12,16 +12,15 @@
 #include <datatools/service_manager.h>
 // - Bayeux/geomtools:
 #include <geomtools/geometry_service.h>
-#include <geomtools/manager.h>
 
 // This project:
 #include <falaise/snemo/datamodels/data_model.h>
 #include <falaise/snemo/datamodels/particle_track_data.h>
 #include <falaise/snemo/processing/services.h>
-#include <snemo/geometry/locator_plugin.h>
-#include <snemo/geometry/calo_locator.h>
-#include <snemo/geometry/xcalo_locator.h>
-#include <snemo/geometry/gveto_locator.h>
+#include <falaise/snemo/geometry/locator_plugin.h>
+#include <falaise/snemo/geometry/calo_locator.h>
+#include <falaise/snemo/geometry/xcalo_locator.h>
+#include <falaise/snemo/geometry/gveto_locator.h>
 
 namespace snemo {
 
@@ -31,30 +30,13 @@ namespace snemo {
     DPP_MODULE_REGISTRATION_IMPLEMENT(gamma_clustering_module,
                                       "snemo::reconstruction::gamma_clustering_module");
 
-    const geomtools::manager & gamma_clustering_module::get_geometry_manager() const
-    {
-      return *_geometry_manager_;
-    }
-
-    void gamma_clustering_module::set_geometry_manager(const geomtools::manager & gmgr_)
-    {
-      DT_THROW_IF (is_initialized(), std::logic_error,
-                   "Module '" << get_name() << "' is already initialized ! ");
-      _geometry_manager_ = &gmgr_;
-
-      // Check setup label:
-      const std::string & setup_label = _geometry_manager_->get_setup_label();
-      DT_THROW_IF (setup_label != "snemo::demonstrator" &&
-                   setup_label != "snemo::tracker_commissioning",
-                   std::logic_error,
-                   "Setup label '" << setup_label << "' is not supported !");
-      return;
-    }
-
     void gamma_clustering_module::_set_defaults()
     {
-      _geometry_manager_ = 0;
       _PTD_label_ = snemo::datamodel::data_info::default_tracker_clustering_data_label();
+      _locator_plugin_ = 0;
+
+      _cluster_time_range_ = 2.5 * CLHEP::ns;
+      _cluster_grid_mask_ = "first";
       return;
     }
 
@@ -63,9 +45,9 @@ namespace snemo {
                                              datatools::service_manager   & service_manager_,
                                              dpp::module_handle_dict_type & /* module_dict_ */)
     {
-      DT_THROW_IF (is_initialized(),
-                   std::logic_error,
-                   "Module '" << get_name() << "' is already initialized ! ");
+      DT_THROW_IF(is_initialized(),
+                  std::logic_error,
+                  "Module '" << get_name() << "' is already initialized ! ");
 
       dpp::base_module::_common_initialize(setup_);
 
@@ -73,62 +55,66 @@ namespace snemo {
         _PTD_label_ = setup_.fetch_string("PTD_label");
       }
 
-      // Geometry manager :
-      if (_geometry_manager_ == 0) {
-        std::string geo_label = snemo::processing::service_info::default_geometry_service_label();
-        if (setup_.has_key("Geo_label")) {
-          geo_label = setup_.fetch_string("Geo_label");
+      std::string key;
+      if (setup_.has_key(key = "cluster.time_range")) {
+        _cluster_time_range_ = setup_.fetch_real(key);
+        if (! setup_.has_explicit_unit(key)) {
+          _cluster_time_range_ *= CLHEP::ns;
         }
-        DT_THROW_IF (geo_label.empty(), std::logic_error,
-                     "Module '" << get_name() << "' has no valid '" << "Geo_label" << "' property !");
-        DT_THROW_IF (! service_manager_.has(geo_label) ||
-                     ! service_manager_.is_a<geomtools::geometry_service>(geo_label),
-                     std::logic_error,
-                     "Module '" << get_name() << "' has no '" << geo_label << "' service !");
-        geomtools::geometry_service & Geo
-          = service_manager_.get<geomtools::geometry_service>(geo_label);
-        set_geometry_manager(Geo.get_geom_manager());
+      }
 
+      if (setup_.has_key(key = "cluster.grid_mask")) {
+        _cluster_grid_mask_ = setup_.fetch_string(key);
+      }
+
+      // Geometry manager :
+      std::string geo_label = snemo::processing::service_info::default_geometry_service_label();
+      if (setup_.has_key("Geo_label")) {
+        geo_label = setup_.fetch_string("Geo_label");
+      }
+      DT_THROW_IF(geo_label.empty(), std::logic_error,
+                  "Module '" << get_name() << "' has no valid '" << "Geo_label" << "' property !");
+      DT_THROW_IF(! service_manager_.has(geo_label) ||
+                  ! service_manager_.is_a<geomtools::geometry_service>(geo_label),
+                  std::logic_error,
+                  "Module '" << get_name() << "' has no '" << geo_label << "' service !");
+      geomtools::geometry_service & Geo
+        = service_manager_.get<geomtools::geometry_service>(geo_label);
 
       // Get geometry locator plugin
-        const geomtools::manager & geo_mgr = Geo.get_geom_manager();
-        std::string locator_plugin_name;
-        if (setup_.has_key ("locator_plugin_name"))
-          {
-            locator_plugin_name = setup_.fetch_string ("locator_plugin_name");
+      const geomtools::manager & geo_mgr = Geo.get_geom_manager();
+      std::string locator_plugin_name;
+      if (setup_.has_key ("locator_plugin_name")) {
+        locator_plugin_name = setup_.fetch_string ("locator_plugin_name");
+      } else {
+        // If no locator plugin name is set, then search for the first one
+        const geomtools::manager::plugins_dict_type & plugins = geo_mgr.get_plugins ();
+        for (geomtools::manager::plugins_dict_type::const_iterator ip = plugins.begin();
+             ip != plugins.end();
+             ++ip) {
+          const std::string & plugin_name = ip->first;
+          if (geo_mgr.is_plugin_a<snemo::geometry::locator_plugin> (plugin_name)) {
+            DT_LOG_DEBUG (get_logging_priority(), "Find locator plugin with name = " << plugin_name);
+            locator_plugin_name = plugin_name;
+            break;
           }
-        else
-          {
-            // If no locator plugin name is set, then search for the first one
-            const geomtools::manager::plugins_dict_type & plugins = geo_mgr.get_plugins ();
-            for (geomtools::manager::plugins_dict_type::const_iterator ip = plugins.begin ();
-                 ip != plugins.end ();
-                 ++ip) {
-              const std::string & plugin_name = ip->first;
-              if (geo_mgr.is_plugin_a<snemo::geometry::locator_plugin> (plugin_name)) {
-                DT_LOG_DEBUG (get_logging_priority (), "Find locator plugin with name = " << plugin_name);
-                locator_plugin_name = plugin_name;
-                break;
-              }
-            }
-          }
-        // Access to a given plugin by name and type :
-        DT_THROW_IF (! geo_mgr.has_plugin (locator_plugin_name) ||
-                     ! geo_mgr.is_plugin_a<snemo::geometry::locator_plugin> (locator_plugin_name),
-                     std::logic_error,
-                     "Found no locator plugin named '" << locator_plugin_name << "'");
-        _locator_plugin_ = &geo_mgr.get_plugin<snemo::geometry::locator_plugin> (locator_plugin_name);
-
+        }
       }
+      // Access to a given plugin by name and type :
+      DT_THROW_IF(! geo_mgr.has_plugin(locator_plugin_name) ||
+                  ! geo_mgr.is_plugin_a<snemo::geometry::locator_plugin>(locator_plugin_name),
+                  std::logic_error,
+                  "Found no locator plugin named '" << locator_plugin_name << "'");
+      _locator_plugin_ = &geo_mgr.get_plugin<snemo::geometry::locator_plugin>(locator_plugin_name);
+
       _set_initialized(true);
       return;
     }
 
     void gamma_clustering_module::reset()
     {
-      DT_THROW_IF (! is_initialized(),
-                   std::logic_error,
-                   "Module '" << get_name() << "' is not initialized !");
+      DT_THROW_IF(! is_initialized(), std::logic_error,
+                  "Module '" << get_name() << "' is not initialized !");
       _set_initialized(false);
       _set_defaults();
       return;
@@ -152,10 +138,8 @@ namespace snemo {
     // Processing :
     dpp::base_module::process_status gamma_clustering_module::process(datatools::things & data_record_)
     {
-      DT_THROW_IF (! is_initialized(), std::logic_error,
-                   "Module '" << get_name() << "' is not initialized !");
-
-      // const snemo::datamodel::calibrated_calorimeter_hit::collection_type * the_calos = 0;
+      DT_THROW_IF(! is_initialized(), std::logic_error,
+                  "Module '" << get_name() << "' is not initialized !");
 
       /*********************************
        * Check particle track data     *
@@ -167,240 +151,238 @@ namespace snemo {
       } else {
         ptr_particle_track_data
           = &(data_record_.grab<snemo::datamodel::particle_track_data>(_PTD_label_));
-        // the_calos = &ptr_particle_track_data->get_non_associated_calorimeters();
       }
       snemo::datamodel::particle_track_data & ptd = *ptr_particle_track_data;
 
-      // /********************
-      //  * Process the data *
-      //  ********************/
-
-
-      // // Sanity check
-      // if (! the_calos) {
-      //   DT_LOG_WARNING(get_logging_priority(), "No calorimeter hits to be processed !");
-      //   return dpp::base_module::PROCESS_ERROR;
-      // }
-
-      gamma_dict_type clustered_gammas;
+      /********************
+       * Process the data *
+       ********************/
 
       // Main processing method :
-      _process(ptd, clustered_gammas);
+      _process(ptd);
 
       return dpp::base_module::PROCESS_SUCCESS;
     }
 
-    void gamma_clustering_module::_get_new_neighbours(const geomtools::geom_id & gid,
-                                                      const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & cch,
-                                                      std::vector<geomtools::geom_id>  & ccl,
-                                                      std::vector<geomtools::geom_id>  & a_cluster)
-    {
-      if(std::find(ccl.begin(), ccl.end(),gid)==ccl.end())
-        ccl.push_back(gid);
-      else
-        return;
-
-      std::vector<geomtools::geom_id>  the_neighbours;
-      std::vector<geomtools::geom_id>  the_calib_neighbours;
-
-      const snemo::geometry::calo_locator & calo_locator
-        = _locator_plugin_->get_calo_locator();
-      const snemo::geometry::xcalo_locator & xcalo_locator
-        = _locator_plugin_->get_xcalo_locator();
-      const snemo::geometry::gveto_locator & gveto_locator
-        = _locator_plugin_->get_gveto_locator();
-
-      if (calo_locator.is_calo_block_in_current_module(gid))
-        calo_locator.get_neighbours_ids(gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
-
-      if (xcalo_locator.is_calo_block_in_current_module(gid))
-        xcalo_locator.get_neighbours_ids(gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
-
-      if (gveto_locator.is_calo_block_in_current_module(gid))
-        gveto_locator.get_neighbours_ids(gid, the_neighbours, snemo::geometry::utils::NEIGHBOUR_FIRST);
-
-      // for (auto ineighbour : the_neighbours)
-      for (std::vector<geomtools::geom_id>::const_iterator ineighbour = the_neighbours.begin();
-           ineighbour != the_neighbours.end(); ++ineighbour) {
-
-        // if (std::find_if(cch.begin(), cch.end(), [ineighbour] (auto icalo)
-        //                  {return ineighbour == icalo.get().get_geom_id();}) != cch.end())
-        //find if the eight ineighbours belong also to cch
-        for (snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
-               icalo = cch.begin(); icalo != cch.end(); ++icalo) {
-          const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = icalo->get();
-
-          if (*ineighbour == a_calo_hit.get_geom_id())
-            if(std::find(ccl.begin(), ccl.end(), *ineighbour) == ccl.end()) {
-              the_calib_neighbours.push_back(*ineighbour);
-              ccl.push_back(*ineighbour);
-              a_cluster.push_back(*ineighbour);
-            }
-        }
-      }
-
-      // for(auto i_calib_neighbour : the_calib_neighbours)
-      for (std::vector<geomtools::geom_id>::const_iterator i_calib_neighbour = the_calib_neighbours.begin();
-           i_calib_neighbour != the_calib_neighbours.end(); ++i_calib_neighbour)
-        _get_new_neighbours(*i_calib_neighbour, cch, ccl, a_cluster);
-    }
-
-
-    void gamma_clustering_module::_process(snemo::datamodel::particle_track_data  & ptd_, gamma_dict_type & clustered_gammas_)
+    void gamma_clustering_module::_process(snemo::datamodel::particle_track_data & ptd_)
     {
       DT_LOG_TRACE(get_logging_priority(), "Entering...");
 
-      const snemo::datamodel::calibrated_calorimeter_hit::collection_type & cch = ptd_.get_non_associated_calorimeters();
+      const snemo::datamodel::calibrated_calorimeter_hit::collection_type & cch
+        = ptd_.get_non_associated_calorimeters();
 
-      std::vector<geomtools::geom_id>  ccl;
+      // Registered calorimeter hits (to be skipped)
+      gid_list_type registered_calos;
 
-      size_t number_of_clusters = 0;
-
-      std::vector<std::vector<geomtools::geom_id> >  the_reconstructed_clusters;
-
-      // for (auto icalo : cch) {
-
+      // Getting gamma clusters
+      cluster_collection_type the_reconstructed_clusters;
       for (snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
              icalo = cch.begin(); icalo != cch.end(); ++icalo) {
+        const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = icalo->get();
 
-        // const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = icalo->get();
+        const geomtools::geom_id & a_gid = a_calo_hit.get_geom_id();
+        const double a_time              = a_calo_hit.get_time();
 
-        const geomtools::geom_id & gid = icalo->get().get_geom_id();
-
-        std::vector<geomtools::geom_id> a_cluster;
-        a_cluster.push_back(gid);
-
-        if(std::find(ccl.begin(), ccl.end(),gid)!=ccl.end())
+        // If already clustered then skip it
+        if (std::find(registered_calos.begin(), registered_calos.end(), a_gid)
+            != registered_calos.end())
           continue;
 
-        _get_new_neighbours(gid, cch, ccl, a_cluster);
+        {
+          // Insert empty cluster
+          DT_LOG_TRACE(get_logging_priority(), "Insert new gamma cluster (#"
+                       << the_reconstructed_clusters.size() << ")");
+          cluster_type dummy;
+          the_reconstructed_clusters.push_back(dummy);
+        }
+        cluster_type & a_cluster = the_reconstructed_clusters.back();
+        a_cluster.insert(std::make_pair(a_time, *icalo));
 
-        the_reconstructed_clusters.push_back(a_cluster);
+        // Get geometrical neighbours given the current geom id
+        _get_geometrical_neighbours(*icalo, cch, a_cluster, registered_calos);
 
-        number_of_clusters++;
+        // Ensure all calorimeter hits within a cluster are in time
+        _get_time_neighbours(a_cluster, the_reconstructed_clusters);
       }
 
-      std::vector<std::map<double, geomtools::geom_id> >  the_ordered_reconstructed_clusters;
-
-      // for(auto icluster : the_reconstructed_clusters)
-      for(std::vector<std::vector<geomtools::geom_id> >::const_iterator icluster = the_reconstructed_clusters.begin();
-          icluster != the_reconstructed_clusters.end(); ++icluster)
-        {
-          std::map<double,geomtools::geom_id> a_cluster;
-
-          // for(auto igid : icluster)
-          //   for(auto ihit : cch)
-          for (std::vector<geomtools::geom_id>::const_iterator igid = icluster->begin();
-               igid != icluster->end(); ++igid)
-            for (snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
-                   ihit = cch.begin(); ihit != cch.end(); ++ihit)
-              if(*igid == ihit->get().get_geom_id())
-                a_cluster.insert( std::pair<double,geomtools::geom_id >(ihit->get().get_time(),*igid) );
-
-          the_ordered_reconstructed_clusters.push_back(a_cluster);
+      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
+        for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
+          const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
+          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
+                       << " (" << a_cluster.size() << " associated calorimeters)");
+          for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
+            const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
+            a_calo_hit.tree_dump();
+          }
         }
+      }
 
-      std::sort(the_ordered_reconstructed_clusters.begin(), the_ordered_reconstructed_clusters.end());
+      // Set new particles within 'particle track data' container
+      if (ptd_.has_non_associated_calorimeters()) {
+        DT_LOG_DEBUG(get_logging_priority(), "Removing non-associated calorimeters");
+        ptd_.reset_non_associated_calorimeters();
+      }
+      for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
+        DT_LOG_TRACE(get_logging_priority(), "Adding a new clustered gamma");
+        snemo::datamodel::particle_track::handle_type hPT(new snemo::datamodel::particle_track);
+        hPT.grab().set_track_id(ptd_.get_number_of_particles());
+        hPT.grab().set_charge(snemo::datamodel::particle_track::neutral);
+        ptd_.add_particle(hPT);
 
-      int track_id = 0;
+        const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
+        for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
+          const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();;
+          hPT.grab().grab_associated_calorimeter_hits().push_back(j->second);
 
-      //      for(auto icluster : the_ordered_reconstructed_clusters)
-      for(std::vector<std::map<double, geomtools::geom_id> >::const_iterator icluster = the_ordered_reconstructed_clusters.begin();
-          icluster != the_ordered_reconstructed_clusters.end(); ++icluster)
-        {
-          track_id++;
+          const geomtools::geom_id & a_gid = a_calo_hit.get_geom_id();
+          // Build vertex
+          snemo::datamodel::particle_track::handle_spot hBS(new geomtools::blur_spot);
+          hPT.grab().grab_vertices().push_back(hBS);
+          geomtools::blur_spot & spot = hBS.grab();
+          spot.set_hit_id(a_calo_hit.get_hit_id());
+          spot.set_geom_id(a_gid);
 
-          if(icluster->size() < 2)
-            {
-              // for (auto ipair : icluster)
-              for(std::map<double, geomtools::geom_id>::const_iterator ipair = icluster->begin();
-                  ipair != icluster->end(); ++ipair)
-              clustered_gammas_[track_id].insert(ipair->second);
-              continue;
-            }
+          const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
+          const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
+          const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
-          double t0 = 0; // not ideal
-          double t1 = 0;
-
-          // for (auto ipair : icluster)
-          for(std::map<double, geomtools::geom_id>::const_iterator ipair = icluster->begin();
-              ipair != icluster->end(); ++ipair)
-            {
-              t0 = t1;
-              t1 = ipair->first;
-              // std::cout << " " << ipair.first  << "   " << std::next(&ipair)->first << std::endl;
-              // std::cout << " " << t0  << "   " << t1 << std::endl;
-
-              if(t0!=0 && t1!=0 && t1-t0 > 2.5 /*ns*/)
-                {
-                  number_of_clusters++;
-                  track_id++;
-                }
-
-              clustered_gammas_[track_id].insert(ipair->second);
-            }
+          geomtools::vector_3d position;
+          std::string label;
+          if (calo_locator.is_calo_block_in_current_module(a_gid)) {
+            calo_locator.get_block_position(a_gid, position);
+            label = snemo::datamodel::particle_track::vertex_on_main_calorimeter_label();
+          } else if (xcalo_locator.is_calo_block_in_current_module(a_gid)) {
+            xcalo_locator.get_block_position(a_gid, position);
+            label = snemo::datamodel::particle_track::vertex_on_x_calorimeter_label();
+          } else if (gveto_locator.is_calo_block_in_current_module(a_gid)) {
+            gveto_locator.get_block_position(a_gid, position);
+            label = snemo::datamodel::particle_track::vertex_on_gamma_veto_label();
+          } else {
+            DT_THROW_IF(true, std::logic_error,
+                        "Current geom id '" << a_gid << "' does not match any scintillator block !");
+          }
+          spot.grab_auxiliaries().store(snemo::datamodel::particle_track::vertex_type_key(),
+                                        label);
+          spot.set_blur_dimension(geomtools::blur_spot::dimension_three);
+          spot.set_position(position);
         }
+      }
 
+      DT_LOG_DEBUG(get_logging_priority(), "Number of clusters : " << the_reconstructed_clusters.size());
+      DT_LOG_TRACE(get_logging_priority(), "Exiting.");
+      return;
+    }
 
-        for (snemo::reconstruction::gamma_clustering_module::gamma_dict_type::const_iterator igamma = clustered_gammas_.begin();
-             igamma != clustered_gammas_.end(); ++igamma) {
+    void gamma_clustering_module::_get_geometrical_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+                                                              const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
+                                                              cluster_type & cluster_,
+                                                              gid_list_type & registered_calos_) const
+    {
+      const snemo::datamodel::calibrated_calorimeter_hit & a_hit = hit_.get();
+      const geomtools::geom_id & a_gid = a_hit.get_geom_id();
 
-          DT_LOG_TRACE(get_logging_priority(), "Adding a new gamma");
-          snemo::datamodel::particle_track::handle_type hPT(new snemo::datamodel::particle_track);
-          hPT.grab().set_track_id(ptd_.get_number_of_particles());
-          hPT.grab().set_charge(snemo::datamodel::particle_track::neutral);
-          ptd_.add_particle(hPT);
-
-          for(snemo::reconstruction::gamma_clustering_module::calo_list_type::const_iterator icalo = igamma->second.begin();
-              icalo != igamma->second.end(); ++icalo)
-            {
-              const geomtools::geom_id calo_geom_id = *icalo;
-              geomtools::base_hit::has_geom_id_predicate geom_id_pred(calo_geom_id);
-              datatools::mother_to_daughter_predicate<geomtools::base_hit,
-                                                      snemo::datamodel::calibrated_calorimeter_hit> pred_M2D(geom_id_pred);
-              datatools::handle_predicate<snemo::datamodel::calibrated_calorimeter_hit> pred_via_handle(pred_M2D);
-              snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
-                found = std::find_if(cch.begin(), cch.end(), pred_via_handle);
-              DT_THROW_IF(found == cch.end(), std::logic_error,
-                          "Calibrated calorimeter hit with geom id " << calo_geom_id << " can not be found");
-              hPT.grab().grab_associated_calorimeter_hits().push_back(*found);
-
-              // Build vertex
-              snemo::datamodel::particle_track::handle_spot hBS(new geomtools::blur_spot);
-              hPT.grab().grab_vertices().push_back(hBS);
-              geomtools::blur_spot & spot = hBS.grab();
-              spot.set_hit_id(found->get().get_hit_id());
-              spot.set_geom_id(calo_geom_id);
-
-              const snemo::geometry::calo_locator  & calo_locator   = _locator_plugin_->get_calo_locator();
-              const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
-              const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
-
-              geomtools::vector_3d position;
-              std::string label;
-              if (calo_locator.is_calo_block_in_current_module(calo_geom_id)) {
-                calo_locator.get_block_position(calo_geom_id, position);
-                label = snemo::datamodel::particle_track::vertex_on_main_calorimeter_label();
-              } else if (xcalo_locator.is_calo_block_in_current_module(calo_geom_id)) {
-                xcalo_locator.get_block_position(calo_geom_id, position);
-                label = snemo::datamodel::particle_track::vertex_on_x_calorimeter_label();
-              } else if (gveto_locator.is_calo_block_in_current_module(calo_geom_id)) {
-                gveto_locator.get_block_position(calo_geom_id, position);
-                label = snemo::datamodel::particle_track::vertex_on_gamma_veto_label();
-              } else {
-                DT_THROW_IF(true, std::logic_error,
-                            "Current geom id '" << calo_geom_id << "' does not match any scintillator block !");
-              }
-              spot.grab_auxiliaries().store(snemo::datamodel::particle_track::vertex_type_key(),
-                                            label);
-              spot.set_blur_dimension(geomtools::blur_spot::dimension_three);
-              spot.set_position(position);
-            }
-        }
-
-        std::cout << "Number of clusters : " << number_of_clusters << std::endl;
-        DT_LOG_TRACE(get_logging_priority(), "Exiting.");
+      // If already clustered then skip it
+      if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
+          != registered_calos_.end())
         return;
+
+      // Store the current calorimeter as registered one
+      registered_calos_.push_back(a_gid);
+      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
+        for (gid_list_type::const_iterator i = registered_calos_.begin();
+             i != registered_calos_.end(); ++i) {
+          DT_LOG_TRACE(get_logging_priority(), "Registered geom id = " << *i);
+        }
+      }
+
+      gid_list_type the_neighbours;
+      const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
+      const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
+      const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
+
+      uint8_t mask = snemo::geometry::utils::NEIGHBOUR_NONE;
+      if (_cluster_grid_mask_ == "first") {
+        mask = snemo::geometry::utils::NEIGHBOUR_FIRST;
+      } else if (_cluster_grid_mask_ == "second") {
+        mask = snemo::geometry::utils::NEIGHBOUR_SECOND;
+      } else if (_cluster_grid_mask_ == "diagonal") {
+        mask = snemo::geometry::utils::NEIGHBOUR_DIAG;
+      } else if (_cluster_grid_mask_ == "side") {
+        mask = snemo::geometry::utils::NEIGHBOUR_SIDE;
+      } else if (_cluster_grid_mask_ == "none") {
+        mask = snemo::geometry::utils::NEIGHBOUR_NONE;
+      } else {
+        DT_THROW_IF(true, std::logic_error, "Unkown neighbour mask '" << _cluster_grid_mask_ << "' !")
+      }
+      if (calo_locator.is_calo_block_in_current_module(a_gid)) {
+        calo_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
+      } else if (xcalo_locator.is_calo_block_in_current_module(a_gid)) {
+        xcalo_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
+      } else if (gveto_locator.is_calo_block_in_current_module(a_gid)) {
+        gveto_locator.get_neighbours_ids(a_gid, the_neighbours, mask);
+      } else {
+        DT_THROW_IF(true, std::logic_error,
+                    "Current geom id '" << a_gid << "' does not match any scintillator block !");
+      }
+
+      for (gid_list_type::const_iterator ineighbour = the_neighbours.begin();
+           ineighbour != the_neighbours.end(); ++ineighbour) {
+        const geomtools::geom_id & a_gid = *ineighbour;
+        if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
+            != registered_calos_.end()) {
+          continue;
+        }
+
+        // 2015/02/06 SC : using lambda function in C++14 (really easier)
+        // if (std::find_if(cch.begin(), cch.end(), [ineighbour] (auto icalo)
+        //                  {return ineighbour == icalo.get().get_geom_id();}) != cch.end())
+        // Find if the eight neighbours belong to calibrated calo. hits
+        geomtools::base_hit::has_geom_id_predicate hit_pred(a_gid);
+        datatools::mother_to_daughter_predicate<geomtools::base_hit,
+                                                snemo::datamodel::calibrated_calorimeter_hit> pred_M2D(hit_pred);
+        datatools::handle_predicate<snemo::datamodel::calibrated_calorimeter_hit> pred_via_handle(pred_M2D);
+        snemo::datamodel::calibrated_calorimeter_hit::collection_type::const_iterator
+          found = std::find_if(hits_.begin(), hits_.end(), pred_via_handle);
+        if (found == hits_.end()) {
+          continue;
+        }
+
+        registered_calos_.push_back(a_gid);
+        cluster_.insert(std::make_pair(found->get().get_time(), *found));
+        _get_geometrical_neighbours(*found, hits_, cluster_, registered_calos_);
+      }
+      return;
+    }
+
+    void gamma_clustering_module::_get_time_neighbours(cluster_type & cluster_,
+                                                       cluster_collection_type & clusters_) const
+    {
+      if (cluster_.size() < 2) return;
+
+      cluster_type::iterator it = cluster_.begin();
+      for (;it != cluster_.end(); ++it) {
+        const double current_time = it->first;
+        const double next_time = boost::next(it)->first;
+        const double delta_time = next_time - current_time;
+        if (delta_time > _cluster_time_range_) {
+          DT_LOG_TRACE(get_logging_priority(),
+                       "Delta time > " << _cluster_time_range_/CLHEP::ns << " ns !!");
+          break;
+        }
+      }
+      if (it == cluster_.end()) return;
+
+      // Create a new cluster to be checked later. To be done in this way
+      // i.e. create first a new empty cluster and then add it to the collection
+      // of clusters otherwise clusters_ stays in a frozen state if the cluster
+      // is added first and then filled.
+      cluster_type a_cluster;
+      a_cluster.insert(boost::next(it), cluster_.end());
+      cluster_.erase(boost::next(it), cluster_.end());
+      clusters_.push_back(a_cluster);
+
+      _get_time_neighbours(a_cluster, clusters_);
+      return;
     }
 
   } // end of namespace reconstruction
