@@ -104,6 +104,12 @@ namespace snemo {
 
       void _get_time_neighbours(cluster_type & cluster_, cluster_collection_type & clusters_) const;
 
+      double _get_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
+                              const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit);
+
+      bool _are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
+                              const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit);
+
     private:
 
       std::string _PTD_label_;                                  //!< The label of the input/output  data bank
@@ -111,6 +117,8 @@ namespace snemo {
 
       double _cluster_time_range_;     //!< The time condition for clustering
       std::string _cluster_grid_mask_; //!< The spatial condition for clustering
+      double _min_prob_;     //!< The minimal probability required between clusters
+      double _sigma_good_calo_;     //!< The minimal probability required between clusters
 
       // Macro to automate the registration of the module :
       DPP_MODULE_REGISTRATION_INTERFACE(gamma_clustering_module);
