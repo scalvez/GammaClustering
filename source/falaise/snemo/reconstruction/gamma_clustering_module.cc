@@ -495,7 +495,7 @@ namespace snemo {
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
       uint8_t mask = snemo::geometry::utils::NEIGHBOUR_NONE;
-      if (_cluster_grid_mask_ == "first") {
+     if (_cluster_grid_mask_ == "first") {
         mask = snemo::geometry::utils::NEIGHBOUR_FIRST;
       } else if (_cluster_grid_mask_ == "second") {
         mask = snemo::geometry::utils::NEIGHBOUR_SECOND;
@@ -637,20 +637,26 @@ namespace snemo {
       int head_wall = -1;
       int tail_wall = -1;
 
+      gid_list_type the_head_second_neighbours;
+      uint8_t second_mask = snemo::geometry::utils::NEIGHBOUR_SECOND; // NOT WORKING
+
       const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
       const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
       if (calo_locator.is_calo_block_in_current_module(head_gid)) {
+        calo_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
         head_side = calo_locator.extract_side(head_gid);
         head_label = snemo::datamodel::particle_track::vertex_on_main_calorimeter_label();
       }
       else if (xcalo_locator.is_calo_block_in_current_module(head_gid)) {
+        xcalo_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
         head_wall = xcalo_locator.extract_wall(head_gid);
         head_side = xcalo_locator.extract_side(head_gid);
         head_label = snemo::datamodel::particle_track::vertex_on_x_calorimeter_label();
       }
       else if (gveto_locator.is_calo_block_in_current_module(head_gid)) {
+        gveto_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
         head_wall = gveto_locator.extract_wall(head_gid);
         head_side = gveto_locator.extract_side(head_gid);
         head_label = snemo::datamodel::particle_track::vertex_on_gamma_veto_label();
@@ -676,6 +682,22 @@ namespace snemo {
       else
         DT_THROW_IF(true, std::logic_error,
                     "Current geom id '" << tail_gid << "' does not match any scintillator block !");
+
+      /*** Tolerance for second neighbours  ***/
+      std::cout << "test entry "<< the_head_second_neighbours.size() << std::endl;
+
+      for (gid_list_type::const_iterator ineighbour = the_head_second_neighbours.begin();
+           ineighbour != the_head_second_neighbours.end(); ++ineighbour)
+        if(*ineighbour == tail_gid) {
+          return false;
+          DT_THROW_IF(true, std::logic_error,
+                    "Current geom id '" << tail_gid << "' does not match any scintillator block !");
+          std::cout << "Tolerance for second neighbours " << std::endl;
+        }
+        else
+          std::cout << "test" << std::endl;
+
+      /*** End second neighbours  ***/
 
       if(head_label == tail_label)
         {
