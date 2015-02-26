@@ -196,8 +196,6 @@ namespace snemo {
         const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = icalo->get();
 
         const geomtools::geom_id & a_gid = a_calo_hit.get_geom_id();
-        const double a_time              = a_calo_hit.get_time();
-
         // If already clustered then skip it
         if (std::find(registered_calos.begin(), registered_calos.end(), a_gid)
             != registered_calos.end())
@@ -212,10 +210,10 @@ namespace snemo {
         }
 
         cluster_type & a_cluster = the_reconstructed_clusters.back();
-        a_cluster.insert(std::make_pair(a_time, *icalo));
+        a_cluster.insert(std::make_pair(a_calo_hit.get_time(), *icalo));
 
         // Get geometrical neighbours given the current geom id
-        _get_geometrical_neighbours(*icalo, cch, a_cluster, registered_calos);
+        _get_geometrical_neighbours(a_calo_hit, cch, a_cluster, registered_calos);
 
         // Ensure all calorimeter hits within a cluster are in time
         _get_time_neighbours(a_cluster, the_reconstructed_clusters);
@@ -467,13 +465,12 @@ namespace snemo {
       return;
     }
 
-    void gamma_clustering_module::_get_geometrical_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+    void gamma_clustering_module::_get_geometrical_neighbours(const snemo::datamodel::calibrated_calorimeter_hit & hit_,
                                                               const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
                                                               cluster_type & cluster_,
                                                               gid_list_type & registered_calos_) const
     {
-      const snemo::datamodel::calibrated_calorimeter_hit & a_hit = hit_.get();
-      const geomtools::geom_id & a_gid = a_hit.get_geom_id();
+      const geomtools::geom_id & a_gid = hit_.get_geom_id();
 
       // If already clustered then skip it
       if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
@@ -543,7 +540,7 @@ namespace snemo {
 
         registered_calos_.push_back(a_gid);
         cluster_.insert(std::make_pair(found->get().get_time(), *found));
-        _get_geometrical_neighbours(*found, hits_, cluster_, registered_calos_);
+        _get_geometrical_neighbours(found->get(), hits_, cluster_, registered_calos_);
       }
       return;
     }

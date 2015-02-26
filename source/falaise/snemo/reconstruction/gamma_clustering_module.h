@@ -97,7 +97,7 @@ namespace snemo {
       void _set_defaults ();
 
       /// Get calorimeter neighbours given teh current calorimeter hit
-      void _get_geometrical_neighbours(const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type & hit_,
+      void _get_geometrical_neighbours(const snemo::datamodel::calibrated_calorimeter_hit & hit_,
                                        const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
                                        cluster_type & cluster_,
                                        gid_list_type & registered_calos_) const;
