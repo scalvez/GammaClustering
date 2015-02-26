@@ -492,10 +492,11 @@ namespace snemo {
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
       uint8_t mask = snemo::geometry::utils::NEIGHBOUR_NONE;
-     if (_cluster_grid_mask_ == "first") {
+      if (_cluster_grid_mask_ == "first") {
         mask = snemo::geometry::utils::NEIGHBOUR_FIRST;
       } else if (_cluster_grid_mask_ == "second") {
-        mask = snemo::geometry::utils::NEIGHBOUR_SECOND;
+        mask = snemo::geometry::utils::NEIGHBOUR_FIRST |
+          snemo::geometry::utils::NEIGHBOUR_SECOND;
       } else if (_cluster_grid_mask_ == "diagonal") {
         mask = snemo::geometry::utils::NEIGHBOUR_DIAG;
       } else if (_cluster_grid_mask_ == "side") {
