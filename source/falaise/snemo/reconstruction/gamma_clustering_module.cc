@@ -231,180 +231,8 @@ namespace snemo {
         }
       }
 
-      /*****  Associate clusters from TOF callculations  *****/
-
-      // if( GC* )
-      //It holds the indices of the two clusters to be later concatenated
-      std::map <size_t,size_t> merge_indices;
-
-      for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
-
-        // Dirty fix, otherwise bug
-        if(i == the_reconstructed_clusters.size()-1)
-          break;
-
-        // The candidate for association to next_cluster
-        const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
-
-        // Retrieve the last calorimeter for check in quality
-        cluster_type::const_iterator it_head = a_cluster.end();
-        --it_head;
-
-        // The algo tries to find a tail to a head
-
-        if(a_cluster.size()>1)   // if a cluster is just one calo, no criterion on its quality
-          {
-            bool found_good_calo_head = false;
-
-            while(!found_good_calo_head) {
-              if(it_head->second.get().get_sigma_time() < _sigma_good_calo_)
-                found_good_calo_head = true;
-
-              if(it_head == a_cluster.begin())
-                break;
-              else
-                --it_head;
-            }
-            // if no good calorimeter has been found, by default take the last in time
-            if(!found_good_calo_head) {
-              it_head = a_cluster.end();
-              --it_head;
-            }
-          }
-
-        const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit = it_head->second.get();
-
-        // Holds the probability from head->tail and the index of the tail
-        std::map <double,size_t> possible_clusters_association;
-
-        for (size_t j = i+1; j < the_reconstructed_clusters.size(); ++j) {
-
-          const cluster_type & next_cluster = the_reconstructed_clusters.at(j);
-          cluster_type::const_iterator it_tail = next_cluster.begin();
-
-          if(_are_on_same_wall(head_end_calo_hit,it_tail->second.get()))
-            continue;
-
-          if(next_cluster.size()>1)
-            {
-              bool found_good_calo_tail = false;
-
-              while(!found_good_calo_tail) {
-                const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit = it_tail->second.get();
-
-                if(it_tail->second.get().get_sigma_time() < _sigma_good_calo_) {
-                  found_good_calo_tail = true;
-                  break;
-                }
-
-                ++it_tail;
-
-                if(it_tail == next_cluster.end())
-                  break;
-              }
-
-              if(!found_good_calo_tail)
-                it_tail = next_cluster.begin();
-            }
-
-          const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit = it_tail->second.get();
-
-          double proba = _get_probability(head_end_calo_hit,tail_begin_calo_hit);
-
-          if(proba>_min_prob_)
-            possible_clusters_association.insert(std::pair<double,size_t>(proba,j));  // keep all possible solutions
-        }
-
-        if(possible_clusters_association.size()==0)
-          continue;
-
-        std::map<double,size_t>::const_iterator it_best_proba = possible_clusters_association.end();
-        --it_best_proba;
-
-        bool tail_already_associated = false;
-
-        //the probability distribution is flat so above P=50%, there are as much chances for a 51% pair and a 99% to be the correct pair
-        //Here, it arbitrarily chooses the first pair built
-        for(std::map<size_t,size_t>::const_iterator it_indices=merge_indices.begin(); it_indices!=merge_indices.end(); ++it_indices)
-          if(it_indices->second==it_best_proba->second) {
-            tail_already_associated = true;
-            break;
-          }
-
-        if(!tail_already_associated)
-          merge_indices.insert(std::pair<size_t,size_t>(i,it_best_proba->second));
-      }
-
       cluster_collection_type the_reconstructed_gammas;
-
-      std::vector <size_t> cluster_to_be_considered;
-
-      for(size_t i = 0;i<the_reconstructed_clusters.size();++i) // initialize with all the clusters in the event
-        cluster_to_be_considered.push_back(i);
-
-      for(std::map<size_t,size_t>::const_iterator i_pair = merge_indices.begin(); i_pair!=merge_indices.end(); ++i_pair)
-        {
-          size_t i_cluster = i_pair->first;
-          size_t i_next_cluster;
-
-          if(std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_cluster)==cluster_to_be_considered.end())
-            continue;  // skip the cluster if it has already been involved in an association before
-
-          cluster_type new_cluster;
-
-          //Fills a new cluster made of the concatenation of successive clusters
-          while(merge_indices.find(i_cluster)!=merge_indices.end())
-            {
-              i_next_cluster = merge_indices.at(i_cluster);
-
-              if(std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_cluster)!=cluster_to_be_considered.end())
-                cluster_to_be_considered.erase(std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_cluster));
-              if(std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_next_cluster)!=cluster_to_be_considered.end())
-                cluster_to_be_considered.erase(std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_next_cluster));
-
-              if(new_cluster.size() == 0)
-                new_cluster.insert(the_reconstructed_clusters.at(i_cluster).begin(),the_reconstructed_clusters.at(i_cluster).end());
-
-              new_cluster.insert(the_reconstructed_clusters.at(i_next_cluster).begin(),the_reconstructed_clusters.at(i_next_cluster).end());
-
-              i_cluster = i_next_cluster;
-            }
-
-          the_reconstructed_gammas.push_back(new_cluster);
-        }
-
-      //Add the remaining isolated clusters
-      for(std::vector<size_t>::const_iterator i_solo = cluster_to_be_considered.begin(); i_solo != cluster_to_be_considered.end(); ++i_solo) {
-        cluster_type & new_cluster = the_reconstructed_clusters.at(*i_solo);
-        the_reconstructed_gammas.push_back(new_cluster);
-      }
-
-      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
-        for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
-          const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
-          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
-                       << " (" << a_cluster.size() << " associated calorimeters)");
-          for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
-            const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
-            a_calo_hit.tree_dump();
-          }
-        }
-      }
-
-      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
-        std::cout << "=============================================" << std::endl;
-        for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
-          const cluster_type & a_gamma = the_reconstructed_gammas.at(i);
-          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
-                       << " (" << a_gamma.size() << " associated calorimeters)");
-          for (cluster_type::const_iterator j = a_gamma.begin(); j != a_gamma.end(); ++j) {
-            const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
-            a_calo_hit.tree_dump();
-          }
-        }
-      }
-
-      /*********  End of GC*  *********************/
+      _get_tof_association(the_reconstructed_clusters, the_reconstructed_gammas);
 
       // Set new particles within 'particle track data' container
       if (ptd_.has_non_associated_calorimeters()) {
@@ -415,9 +243,9 @@ namespace snemo {
       for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
         DT_LOG_TRACE(get_logging_priority(), "Adding a new clustered gamma");
         snemo::datamodel::particle_track::handle_type hPT(new snemo::datamodel::particle_track);
+        ptd_.add_particle(hPT);
         hPT.grab().set_track_id(ptd_.get_number_of_particles());
         hPT.grab().set_charge(snemo::datamodel::particle_track::neutral);
-        ptd_.add_particle(hPT);
 
         // const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
         const cluster_type & a_cluster = the_reconstructed_gammas.at(i);
@@ -577,19 +405,156 @@ namespace snemo {
       return;
     }
 
-    double gamma_clustering_module::_get_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                                                     const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit)
+    void gamma_clustering_module::_get_tof_association(const cluster_collection_type & the_reconstructed_clusters,
+                                                       cluster_collection_type & the_reconstructed_gammas) const
     {
-      geomtools::vector_3d head_position;
-      geomtools::vector_3d tail_position;
-      const geomtools::geom_id & head_gid = head_end_calo_hit.get_geom_id();
-      const geomtools::geom_id & tail_gid = tail_begin_calo_hit.get_geom_id();
+      /*****  Associate clusters from TOF callculations  *****/
+      // Store the indices of the two clusters to be later concatenated
+      std::map<size_t,size_t> merge_indices;
+      for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
+        // The candidate for association to next_cluster
+        const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
 
+        // Retrieve the last calorimeter for check in quality
+        cluster_type::const_reverse_iterator it_head = a_cluster.rbegin();
+
+        // The algo tries to find a tail to a head
+        for (; it_head != a_cluster.rend(); ++it_head) {
+          const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_head->second.get();
+          if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
+        }
+
+        // Holds the probability from head->tail and the index of the tail
+        std::map<double,size_t> possible_clusters_association;
+
+        for (size_t j = i+1; j < the_reconstructed_clusters.size(); ++j) {
+          const cluster_type & next_cluster = the_reconstructed_clusters.at(j);
+
+          cluster_type::const_iterator it_tail = next_cluster.begin();
+          if (_are_on_same_wall(it_head->second.get(), it_tail->second.get()))
+            continue;
+
+          for (; it_tail != next_cluster.end(); ++it_tail) {
+            const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_tail->second.get();
+            if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
+          }
+
+          const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit = it_head->second.get();
+          const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit = it_tail->second.get();
+          const double tof_prob = _get_tof_probability(head_end_calo_hit, tail_begin_calo_hit);
+          if (tof_prob > _min_prob_) {
+            // Keep all possible solutions
+            possible_clusters_association.insert(std::make_pair(tof_prob, j));
+          }
+        } // end of second loop on cluster
+
+        if (possible_clusters_association.empty()) continue;
+
+        // The probability distribution is flat so above P=50%, there are as much
+        // chances for a 51% pair and a 99% to be the correct pair. Here, it
+        // arbitrarily chooses the first pair built
+        std::map<double,size_t>::const_reverse_iterator it_best_proba
+          = possible_clusters_association.rbegin();
+        bool tail_already_associated = false;
+        for (std::map<size_t,size_t>::const_iterator it_idx = merge_indices.begin();
+             it_idx != merge_indices.end(); ++it_idx) {
+          if (it_idx->second == it_best_proba->second) {
+            tail_already_associated = true;
+            break;
+          }
+        }
+
+        if (!tail_already_associated) {
+          merge_indices.insert(std::make_pair(i, it_best_proba->second));
+        }
+      }// end of first loop on cluster
+
+      // Initialize with all the clusters in the event
+      std::vector<size_t> cluster_to_be_considered;
+      for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i)
+        cluster_to_be_considered.push_back(i);
+
+      for (std::map<size_t,size_t>::const_iterator i_pair = merge_indices.begin();
+           i_pair != merge_indices.end(); ++i_pair) {
+        size_t i_cluster = i_pair->first;
+
+        // Skip the cluster if it has already been involved in an association before
+        if (std::find(cluster_to_be_considered.begin(),
+                      cluster_to_be_considered.end(), i_cluster) == cluster_to_be_considered.end())
+          continue;
+
+        {
+          cluster_type dummy;
+          the_reconstructed_gammas.push_back(dummy);
+        }
+        cluster_type & new_cluster = the_reconstructed_gammas.back();
+
+        // Fill a new cluster made of the concatenation of successive clusters
+        while (merge_indices.count(i_cluster)) {
+          const size_t i_next_cluster = merge_indices.at(i_cluster);
+
+          const std::vector<size_t>::iterator it1
+            = std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_cluster);
+          if (it1 != cluster_to_be_considered.end()) {
+            cluster_to_be_considered.erase(it1);
+          }
+          const std::vector<size_t>::iterator it2
+            = std::find(cluster_to_be_considered.begin(),cluster_to_be_considered.end(),i_next_cluster);
+          if (it2 != cluster_to_be_considered.end()) {
+            cluster_to_be_considered.erase(it2);
+          }
+
+          if (new_cluster.empty()) {
+            new_cluster.insert(the_reconstructed_clusters.at(i_cluster).begin(),the_reconstructed_clusters.at(i_cluster).end());
+          }
+          new_cluster.insert(the_reconstructed_clusters.at(i_next_cluster).begin(),the_reconstructed_clusters.at(i_next_cluster).end());
+
+          i_cluster = i_next_cluster;
+        }
+      }
+
+      // Add the remaining isolated clusters
+      for(std::vector<size_t>::const_iterator i_solo = cluster_to_be_considered.begin();
+          i_solo != cluster_to_be_considered.end(); ++i_solo) {
+        const cluster_type & new_cluster = the_reconstructed_clusters.at(*i_solo);
+        the_reconstructed_gammas.push_back(new_cluster);
+      }
+
+      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
+        for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
+          const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
+          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
+                       << " (" << a_cluster.size() << " associated calorimeters)");
+          for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
+            const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
+            a_calo_hit.tree_dump();
+          }
+        }
+      }
+
+      if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
+        DT_LOG_TRACE(get_logging_priority(), "=============================================");
+        for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
+          const cluster_type & a_gamma = the_reconstructed_gammas.at(i);
+          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
+                       << " (" << a_gamma.size() << " associated calorimeters)");
+          for (cluster_type::const_iterator j = a_gamma.begin(); j != a_gamma.end(); ++j) {
+            const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
+            a_calo_hit.tree_dump();
+          }
+        }
+      }
+    }
+
+    double gamma_clustering_module::_get_tof_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit_,
+                                                         const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit_) const
+    {
       const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
       const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
-
+      geomtools::vector_3d head_position;
+      const geomtools::geom_id & head_gid = head_end_calo_hit_.get_geom_id();
       if (calo_locator.is_calo_block_in_current_module(head_gid))
         calo_locator.get_block_position(head_gid, head_position);
       else if (xcalo_locator.is_calo_block_in_current_module(head_gid))
@@ -600,6 +565,8 @@ namespace snemo {
         DT_THROW_IF(true, std::logic_error,
                     "Current geom id '" << head_gid << "' does not match any scintillator block !");
 
+      geomtools::vector_3d tail_position;
+      const geomtools::geom_id & tail_gid = tail_begin_calo_hit_.get_geom_id();
       if (calo_locator.is_calo_block_in_current_module(tail_gid))
         calo_locator.get_block_position(tail_gid, tail_position);
       else if (xcalo_locator.is_calo_block_in_current_module(tail_gid))
@@ -610,100 +577,48 @@ namespace snemo {
         DT_THROW_IF(true, std::logic_error,
                     "Current geom id '" << tail_gid << "' does not match any scintillator block !");
 
+      const double t1 = head_end_calo_hit_.get_time();
+      const double t2 = tail_begin_calo_hit_.get_time();
       const double track_length = (head_position-tail_position).mag();
-      const double t1 = head_end_calo_hit.get_time();
-      const double t2 = tail_begin_calo_hit.get_time();
       const double t_th = track_length / CLHEP::c_light;
-      const double sigma_l = 120; //mm
-      const double sigma_exp = pow(head_end_calo_hit.get_sigma_time(),2) + pow(tail_begin_calo_hit.get_sigma_time(),2) + pow(sigma_l/100,2);
+#warning sigma_l unit must be fixed !
+      const double sigma_l = 1.2 * CLHEP::ns;
+      const double sigma_exp = pow(head_end_calo_hit_.get_sigma_time(),2)
+        + pow(tail_begin_calo_hit_.get_sigma_time(),2) + pow(sigma_l,2);
       const double chi2 = pow(std::abs(t1 - t2) - t_th,2)/sigma_exp;
-
       return gsl_cdf_chisq_Q(chi2, 1);
     }
 
     bool gamma_clustering_module::_are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                                                    const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit)
+                                                    const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const
     {
       const geomtools::geom_id & head_gid = head_end_calo_hit.get_geom_id();
       const geomtools::geom_id & tail_gid = tail_begin_calo_hit.get_geom_id();
-
-      std::string head_label;
-      std::string tail_label;
-
-      int head_side = -1;
-      int tail_side = -1;
-      int head_wall = -1;
-      int tail_wall = -1;
-
-      gid_list_type the_head_second_neighbours;
-      uint8_t second_mask = snemo::geometry::utils::NEIGHBOUR_SECOND; // NOT WORKING
 
       const snemo::geometry::calo_locator & calo_locator   = _locator_plugin_->get_calo_locator();
       const snemo::geometry::xcalo_locator & xcalo_locator = _locator_plugin_->get_xcalo_locator();
       const snemo::geometry::gveto_locator & gveto_locator = _locator_plugin_->get_gveto_locator();
 
-      if (calo_locator.is_calo_block_in_current_module(head_gid)) {
-        calo_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
-        head_side = calo_locator.extract_side(head_gid);
-        head_label = snemo::datamodel::particle_track::vertex_on_main_calorimeter_label();
+      if (calo_locator.is_calo_block_in_current_module(head_gid) &&
+          calo_locator.is_calo_block_in_current_module(tail_gid)) {
+        const size_t head_side = calo_locator.extract_side(head_gid);
+        const size_t tail_side = calo_locator.extract_side(tail_gid);
+        return head_side == tail_side;
       }
-      else if (xcalo_locator.is_calo_block_in_current_module(head_gid)) {
-        xcalo_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
-        head_wall = xcalo_locator.extract_wall(head_gid);
-        head_side = xcalo_locator.extract_side(head_gid);
-        head_label = snemo::datamodel::particle_track::vertex_on_x_calorimeter_label();
-      }
-      else if (gveto_locator.is_calo_block_in_current_module(head_gid)) {
-        gveto_locator.get_neighbours_ids(head_gid, the_head_second_neighbours, second_mask);
-        head_wall = gveto_locator.extract_wall(head_gid);
-        head_side = gveto_locator.extract_side(head_gid);
-        head_label = snemo::datamodel::particle_track::vertex_on_gamma_veto_label();
-      }
-      else
-        DT_THROW_IF(true, std::logic_error,
-                    "Current geom id '" << head_gid << "' does not match any scintillator block !");
 
-      if (calo_locator.is_calo_block_in_current_module(tail_gid)) {
-        tail_side = calo_locator.extract_side(tail_gid);
-        tail_label = snemo::datamodel::particle_track::vertex_on_main_calorimeter_label();
+      if (xcalo_locator.is_calo_block_in_current_module(head_gid) &&
+          xcalo_locator.is_calo_block_in_current_module(tail_gid)) {
+        const size_t head_wall = xcalo_locator.extract_wall(head_gid);
+        const size_t tail_wall = xcalo_locator.extract_wall(tail_gid);
+        return head_wall == tail_wall;
       }
-      else if (xcalo_locator.is_calo_block_in_current_module(tail_gid)) {
-        tail_wall = xcalo_locator.extract_wall(tail_gid);
-        tail_side = xcalo_locator.extract_side(tail_gid);
-        tail_label = snemo::datamodel::particle_track::vertex_on_x_calorimeter_label();
+
+      if (gveto_locator.is_calo_block_in_current_module(head_gid) &&
+          gveto_locator.is_calo_block_in_current_module(tail_gid)) {
+        const size_t head_wall = gveto_locator.extract_wall(head_gid);
+        const size_t tail_wall = gveto_locator.extract_wall(tail_gid);
+        return head_wall == tail_wall;
       }
-      else if (gveto_locator.is_calo_block_in_current_module(tail_gid)) {
-        tail_wall = gveto_locator.extract_wall(tail_gid);
-        tail_side = gveto_locator.extract_side(tail_gid);
-        tail_label = snemo::datamodel::particle_track::vertex_on_gamma_veto_label();
-      }
-      else
-        DT_THROW_IF(true, std::logic_error,
-                    "Current geom id '" << tail_gid << "' does not match any scintillator block !");
-
-      /*** Tolerance for second neighbours  ***/
-      std::cout << "test entry "<< the_head_second_neighbours.size() << std::endl;
-
-      for (gid_list_type::const_iterator ineighbour = the_head_second_neighbours.begin();
-           ineighbour != the_head_second_neighbours.end(); ++ineighbour)
-        if(*ineighbour == tail_gid) {
-          return false;
-          DT_THROW_IF(true, std::logic_error,
-                    "Current geom id '" << tail_gid << "' does not match any scintillator block !");
-          std::cout << "Tolerance for second neighbours " << std::endl;
-        }
-        else
-          std::cout << "test" << std::endl;
-
-      /*** End second neighbours  ***/
-
-      if(head_label == tail_label)
-        {
-          if(head_label == snemo::datamodel::particle_track::vertex_on_main_calorimeter_label())
-            return head_side == tail_side;
-          else
-            return head_wall == tail_wall;
-        }
 
       return false;
     }

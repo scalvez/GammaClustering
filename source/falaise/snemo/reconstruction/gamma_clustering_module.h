@@ -34,9 +34,7 @@
 #define FALAISE_GAMMA_CLUSTERING_PLUGIN_SNEMO_RECONSTRUCTION_GAMMA_CLUSTERING_MODULE_H 1
 
 // Third party:
-// - Boost:
-#include <boost/scoped_ptr.hpp>
-// - Bayuex/dpp :
+// - Bayeux/dpp :
 #include <dpp/base_module.h>
 // - Bayeux/geomtools:
 #include <geomtools/geom_id.h>
@@ -102,13 +100,18 @@ namespace snemo {
                                        cluster_type & cluster_,
                                        gid_list_type & registered_calos_) const;
 
+      /// Split calorimeter cluster given a cluster time range value
       void _get_time_neighbours(cluster_type & cluster_, cluster_collection_type & clusters_) const;
 
-      double _get_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                              const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit);
+      /// Associate clusters given Time-Of-Flight calculation
+      void _get_tof_association(const cluster_collection_type & from_clusters_,
+                                cluster_collection_type & to_clusters_) const;
+
+      double _get_tof_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
+                                  const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
 
       bool _are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                              const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit);
+                             const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
 
     private:
 
