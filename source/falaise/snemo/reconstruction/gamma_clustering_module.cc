@@ -423,6 +423,7 @@ namespace snemo {
           const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_head->second.get();
           if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
         }
+        if (it_head == a_cluster.rend()) it_head = a_cluster.rbegin();
 
         // Holds the probability from head->tail and the index of the tail
         std::map<double,size_t> possible_clusters_association;
@@ -438,6 +439,7 @@ namespace snemo {
             const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_tail->second.get();
             if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
           }
+          if (it_tail == next_cluster.end()) it_tail = next_cluster.begin();
 
           const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit = it_head->second.get();
           const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit = it_tail->second.get();
