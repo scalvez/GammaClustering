@@ -239,7 +239,6 @@ namespace snemo {
         DT_LOG_DEBUG(get_logging_priority(), "Removing non-associated calorimeters");
         ptd_.reset_non_associated_calorimeters();
       }
-      // for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
       for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
         DT_LOG_TRACE(get_logging_priority(), "Adding a new clustered gamma");
         snemo::datamodel::particle_track::handle_type hPT(new snemo::datamodel::particle_track);
@@ -247,7 +246,6 @@ namespace snemo {
         hPT.grab().set_track_id(ptd_.get_number_of_particles());
         hPT.grab().set_charge(snemo::datamodel::particle_track::neutral);
 
-        // const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
         const cluster_type & a_cluster = the_reconstructed_gammas.at(i);
         for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
           const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();;
@@ -408,7 +406,6 @@ namespace snemo {
     void gamma_clustering_module::_get_tof_association(const cluster_collection_type & the_reconstructed_clusters,
                                                        cluster_collection_type & the_reconstructed_gammas) const
     {
-      /*****  Associate clusters from TOF callculations  *****/
       // Store the indices of the two clusters to be later concatenated
       std::map<size_t,size_t> merge_indices;
       for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
