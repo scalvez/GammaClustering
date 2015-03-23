@@ -18,9 +18,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/source)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/source/falaise)
 
 # - Headers:
+list(APPEND FalaiseGammaClusteringPlugin_HEADERS source/falaise/snemo/reconstruction/gamma_clustering_driver.h)
 list(APPEND FalaiseGammaClusteringPlugin_HEADERS source/falaise/snemo/reconstruction/gamma_clustering_module.h)
 
 # - Sources:
+list(APPEND FalaiseGammaClusteringPlugin_SOURCES source/falaise/snemo/reconstruction/gamma_clustering_driver.cc)
 list(APPEND FalaiseGammaClusteringPlugin_SOURCES source/falaise/snemo/reconstruction/gamma_clustering_module.cc)
 
 ############################################################################################
