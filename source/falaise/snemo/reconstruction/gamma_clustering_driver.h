@@ -37,6 +37,9 @@
 #include <map>
 #include <vector>
 
+// Falaise:
+#include <snemo/processing/base_gamma_builder.h>
+
 // Third party:
 // - Boost:
 #include <boost/scoped_ptr.hpp>
@@ -66,7 +69,7 @@ namespace snemo {
   namespace reconstruction {
 
     /// Driver for the gamma clustering algorithms
-    class gamma_clustering_driver
+    class gamma_clustering_driver : public ::snemo::processing::base_gamma_builder
     {
     public:
       /// Typedef for list of geom ids
@@ -80,27 +83,6 @@ namespace snemo {
 
       static const std::string & gamma_clustering_id();
 
-      /// Initialization flag
-      void set_initialized(const bool initialized_);
-
-      /// Getting initialization flag
-      bool is_initialized() const;
-
-      /// Setting logging priority
-      void set_logging_priority(const datatools::logger::priority priority_);
-
-      /// Getting logging priority
-      datatools::logger::priority get_logging_priority() const;
-
-      /// Check the geometry manager
-      bool has_geometry_manager() const;
-
-      /// Address the geometry manager
-      void set_geometry_manager(const geomtools::manager & gmgr_);
-
-      /// Return a non-mutable reference to the geometry manager
-      const geomtools::manager & get_geometry_manager() const;
-
       /// Constructor
       gamma_clustering_driver();
 
@@ -113,13 +95,10 @@ namespace snemo {
       /// Reset the clusterizer
       virtual void reset();
 
-      /// Data record processing
-      virtual int process(snemo::datamodel::particle_track_data & ptd_);
-
     protected:
 
       /// Special method to process and generate particle track data
-      void _process(snemo::datamodel::particle_track_data & ptd_);
+      int _process_algo(snemo::datamodel::particle_track_data & ptd_);
 
       /// Give default values to specific class members.
       void _set_defaults ();
@@ -144,17 +123,10 @@ namespace snemo {
                                      const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
 
     private:
-
-      bool _initialized_;                                       //!< Initialize flag
-      datatools::logger::priority _logging_priority_;           //!< Logging priority
-      const geomtools::manager * _geometry_manager_;            //!< The SuperNEMO geometry manager
-      const snemo::geometry::locator_plugin * _locator_plugin_; //!< The SuperNEMO locator plugin
       double _cluster_time_range_;     //!< The time condition for clustering
       std::string _cluster_grid_mask_; //!< The spatial condition for clustering
       double _min_prob_;     //!< The minimal probability required between clusters
       double _sigma_good_calo_;     //!< The minimal probability required between clusters
-      std::string _PTD_label_;                       //!< The label of the input/output  data bank
-
       datatools::properties _gc_setup_;                         //!< The Gamma Clustering parameters
       // for members
     };
