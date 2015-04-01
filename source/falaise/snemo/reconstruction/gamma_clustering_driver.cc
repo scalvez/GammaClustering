@@ -180,11 +180,37 @@ namespace snemo {
 
         const cluster_type & a_cluster = the_reconstructed_gammas.at(i);
         for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
-          const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();;
+          const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
           hPT.grab().grab_associated_calorimeter_hits().push_back(j->second);
 
           const geomtools::geom_id & a_gid = a_calo_hit.get_geom_id();
-          // Build vertex
+
+          //Build foil vertex (by default associate the charged particle vertex)
+
+          snemo::datamodel::particle_track_data::particle_collection_type the_electrons;
+
+          if(ptd_.fetch_particles(the_electrons, snemo::datamodel::particle_track::NEGATIVE))
+            {
+              const snemo::datamodel::particle_track::vertex_collection_type &
+                the_electron_vertices = the_electrons.at(0).get().get_vertices();
+              for(snemo::datamodel::particle_track::vertex_collection_type::const_iterator i_vtx = the_electron_vertices.begin();
+                  i_vtx<the_electron_vertices.end(); ++i_vtx)
+                {
+                  if(!snemo::datamodel::particle_track::vertex_is_on_source_foil(i_vtx->get()))
+                    continue;
+
+                  snemo::datamodel::particle_track::handle_spot hBSv(new geomtools::blur_spot);
+                  hPT.grab().grab_vertices().insert(hPT.grab().grab_vertices().begin(),hBSv);
+                  geomtools::blur_spot & spot_v = hBSv.grab();
+                  spot_v.set_hit_id(0);
+                  spot_v.grab_auxiliaries().store(snemo::datamodel::particle_track::vertex_type_key(),
+                                                  snemo::datamodel::particle_track::vertex_on_source_foil_label());
+                  spot_v.set_blur_dimension(geomtools::blur_spot::dimension_three);
+                  spot_v.set_position(i_vtx->get().get_position());
+                }
+            }
+
+          // Build calorimeter vertices
           snemo::datamodel::particle_track::handle_spot hBS(new geomtools::blur_spot);
           hPT.grab().grab_vertices().push_back(hBS);
           geomtools::blur_spot & spot = hBS.grab();
