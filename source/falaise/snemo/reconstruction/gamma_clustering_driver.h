@@ -46,7 +46,6 @@
 
 // - Bayeux/datatools:
 #include <datatools/logger.h>
-#include <datatools/properties.h>
 
 // This project:
 #include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
@@ -81,6 +80,7 @@ namespace snemo {
       /// Typedef for collection of clusters
       typedef std::vector<cluster_type> cluster_collection_type;
 
+      /// Dedicated algorithm id
       static const std::string & gamma_clustering_id();
 
       /// Constructor
@@ -116,18 +116,19 @@ namespace snemo {
       virtual void _get_tof_association(const cluster_collection_type & from_clusters_,
                                         cluster_collection_type & to_clusters_) const;
 
-      virtual double _get_tof_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                                          const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
+      /// Return Time-Of-Flight probability between 2 calorimeter hits
+      virtual double _get_tof_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit_,
+                                          const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit_) const;
 
-      virtual bool _are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                                     const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
+      /// Check if 2 calorimeter hits belong to the same wall
+      virtual bool _are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit_,
+                                     const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit_) const;
 
     private:
       double _cluster_time_range_;     //!< The time condition for clustering
       std::string _cluster_grid_mask_; //!< The spatial condition for clustering
       double _min_prob_;     //!< The minimal probability required between clusters
       double _sigma_good_calo_;     //!< The minimal probability required between clusters
-      datatools::properties _gc_setup_;                         //!< The Gamma Clustering parameters
       // for members
     };
 

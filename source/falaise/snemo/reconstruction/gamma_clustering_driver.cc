@@ -92,9 +92,6 @@ namespace snemo {
         }
       }
 
-      // Extract the setup of the gamma clustering algo :
-      setup_.export_and_rename_starting_with(_gc_setup_, "GC.", "");
-
       _set_initialized(true);
       return;
     }
