@@ -59,7 +59,7 @@ namespace snemo {
 
       _cluster_time_range_ = 6 * CLHEP::ns;
       _cluster_grid_mask_ = "first";
-      _min_prob_ = 0.00001;
+      _min_prob_ = 1e-3 * CLHEP::perCent;
       _sigma_good_calo_ = 2.5 * CLHEP::ns;
       return;
     }
@@ -67,27 +67,34 @@ namespace snemo {
     // Initialization :
     void gamma_clustering_driver::initialize(const datatools::properties  & setup_)
     {
-      base_gamma_builder::_initialize(setup_);
+      this->snemo::processing::base_gamma_builder::_initialize(setup_);
+
+      // Extract the setup of the base gamma builder :
+      datatools::properties gc_setup;
+      setup_.export_and_rename_starting_with(gc_setup, "GC.", "");
 
       std::string key;
-      if (setup_.has_key(key = "cluster.time_range")) {
-        _cluster_time_range_ = setup_.fetch_real(key);
-        if (! setup_.has_explicit_unit(key)) {
+      if (gc_setup.has_key(key = "cluster_time_range")) {
+        _cluster_time_range_ = gc_setup.fetch_real(key);
+        if (! gc_setup.has_explicit_unit(key)) {
           _cluster_time_range_ *= CLHEP::ns;
         }
       }
 
-      if (setup_.has_key(key = "cluster.grid_mask")) {
-        _cluster_grid_mask_ = setup_.fetch_string(key);
+      if (gc_setup.has_key(key = "cluster_grid_mask")) {
+        _cluster_grid_mask_ = gc_setup.fetch_string(key);
       }
 
-      if (setup_.has_key(key = "cluster.min_prob")) {
-        _min_prob_ = setup_.fetch_real(key);
+      if (gc_setup.has_key(key = "minimal_probability")) {
+        _min_prob_ = gc_setup.fetch_real(key);
+        if (! gc_setup.has_explicit_unit(key)) {
+          _min_prob_ *= CLHEP::perCent;
+        }
       }
 
-      if (setup_.has_key(key = "cluster.sigma_good_calo")) {
-        _sigma_good_calo_ = setup_.fetch_real(key);
-        if (! setup_.has_explicit_unit(key)) {
+      if (gc_setup.has_key(key = "sigma_good_calo")) {
+        _sigma_good_calo_ = gc_setup.fetch_real(key);
+        if (! gc_setup.has_explicit_unit(key)) {
           _sigma_good_calo_ *= CLHEP::ns;
         }
       }
@@ -98,8 +105,7 @@ namespace snemo {
 
     void gamma_clustering_driver::reset()
     {
-      base_gamma_builder::_reset();
-      // set_initialized(false);
+      this->snemo::processing::base_gamma_builder::_reset();
       _set_defaults();
       return;
     }
@@ -181,31 +187,6 @@ namespace snemo {
           hPT.grab().grab_associated_calorimeter_hits().push_back(j->second);
 
           const geomtools::geom_id & a_gid = a_calo_hit.get_geom_id();
-
-          //Build foil vertex (by default associate the charged particle vertex)
-
-          snemo::datamodel::particle_track_data::particle_collection_type the_electrons;
-
-          if(ptd_.fetch_particles(the_electrons, snemo::datamodel::particle_track::NEGATIVE))
-            {
-              const snemo::datamodel::particle_track::vertex_collection_type &
-                the_electron_vertices = the_electrons.at(0).get().get_vertices();
-              for(snemo::datamodel::particle_track::vertex_collection_type::const_iterator i_vtx = the_electron_vertices.begin();
-                  i_vtx<the_electron_vertices.end(); ++i_vtx)
-                {
-                  if(!snemo::datamodel::particle_track::vertex_is_on_source_foil(i_vtx->get()))
-                    continue;
-
-                  snemo::datamodel::particle_track::handle_spot hBSv(new geomtools::blur_spot);
-                  hPT.grab().grab_vertices().insert(hPT.grab().grab_vertices().begin(),hBSv);
-                  geomtools::blur_spot & spot_v = hBSv.grab();
-                  spot_v.set_hit_id(0);
-                  spot_v.grab_auxiliaries().store(snemo::datamodel::particle_track::vertex_type_key(),
-                                                  snemo::datamodel::particle_track::vertex_on_source_foil_label());
-                  spot_v.set_blur_dimension(geomtools::blur_spot::dimension_three);
-                  spot_v.set_position(i_vtx->get().get_position());
-                }
-            }
 
           // Build calorimeter vertices
           snemo::datamodel::particle_track::handle_spot hBS(new geomtools::blur_spot);
@@ -546,12 +527,11 @@ namespace snemo {
       const double t2 = tail_begin_calo_hit_.get_time();
       const double track_length = (head_position-tail_position).mag();
       const double t_th = track_length / CLHEP::c_light;
-#warning sigma_l unit must be fixed !
       const double sigma_l = 0.6 * CLHEP::ns;
       const double sigma_exp = pow(head_end_calo_hit_.get_sigma_time(),2)
         + pow(tail_begin_calo_hit_.get_sigma_time(),2) + pow(sigma_l,2);
       const double chi2 = pow(std::abs(t1 - t2) - t_th,2)/sigma_exp;
-      return gsl_cdf_chisq_Q(chi2, 1);
+      return gsl_cdf_chisq_Q(chi2, 1)*100*CLHEP::perCent;
     }
 
     bool gamma_clustering_driver::_are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
@@ -587,6 +567,85 @@ namespace snemo {
 
       return false;
     }
+
+    // static
+    void gamma_clustering_driver::init_ocd(datatools::object_configuration_description & ocd_)
+    {
+      // Invoke OCD support from parent class :
+      ::snemo::processing::base_gamma_builder::ocd_support(ocd_);
+
+      {
+        // Description of the 'GC.cluster_time_range' configuration property :
+        datatools::configuration_property_description & cpd
+          = ocd_.add_property_info();
+        cpd.set_name_pattern("GC.cluster_time_range")
+          .set_from("snemo::reconstruction::gamma_clustering_driver")
+          .set_terse_description("")
+          .set_traits(datatools::TYPE_REAL)
+          .set_mandatory(false)
+          .set_default_value_real(6 * CLHEP::ns, "ns")
+          .add_example("Use the default value::                       \n"
+                       "                                              \n"
+                       "  GC.cluster_time_range : real as time = 6 ns \n"
+                       "                                              \n"
+                       )
+          ;
+      }
+      {
+        // Description of the 'GC.cluster_grid_mask' configuration property :
+        datatools::configuration_property_description & cpd
+          = ocd_.add_property_info();
+        cpd.set_name_pattern("GC.cluster_grid_mask")
+          .set_from("snemo::reconstruction::gamma_clustering_driver")
+          .set_terse_description("")
+          .set_traits(datatools::TYPE_STRING)
+          .set_mandatory(false)
+          .set_default_value_string("first")
+          .add_example("Use the default value::                     \n"
+                       "                                            \n"
+                       "  GC.cluster_grid_mask : string = \"first\" \n"
+                       "                                            \n"
+                       )
+          ;
+      }
+      {
+        // Description of the 'GC.minimal_probability' configuration property :
+        datatools::configuration_property_description & cpd
+          = ocd_.add_property_info();
+        cpd.set_name_pattern("GC.minimal_probability")
+          .set_from("snemo::reconstruction::gamma_clustering_driver")
+          .set_terse_description("")
+          .set_traits(datatools::TYPE_REAL)
+          .set_mandatory(false)
+          .set_default_value_real(1e-3 * CLHEP::perCent, "%")
+          .add_example("Use the default value::                             \n"
+                       "                                                    \n"
+                       "  GC.minimal_probability : real as fraction = 1e-3% \n"
+                       "                                                    \n"
+                       )
+          ;
+      }
+      {
+        // Description of the 'GC.sigma_good_calo' configuration property :
+        datatools::configuration_property_description & cpd
+          = ocd_.add_property_info();
+        cpd.set_name_pattern("GC.sigma_good_calo")
+          .set_from("snemo::reconstruction::gamma_clustering_driver")
+          .set_terse_description("")
+          .set_traits(datatools::TYPE_REAL)
+          .set_mandatory(false)
+          .set_default_value_real(2.5 * CLHEP::ns, "ns")
+          .add_example("Use the default value::                      \n"
+                       "                                             \n"
+                       "  GC.sigma_good_calo : real as time = 2.5 ns \n"
+                       "                                             \n"
+                       )
+          ;
+      }
+
+      return;
+    }
+
   } // end of namespace reconstruction
 
 } // end of namespace snemo
