@@ -36,38 +36,27 @@
 // Third party:
 // - Bayeux/dpp :
 #include <dpp/base_module.h>
-// - Bayeux/geomtools:
-#include <geomtools/geom_id.h>
 
-// This project:
-#include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
-#include <falaise/snemo/datamodels/calibrated_data.h>
-
+namespace geomtools {
+  class manager;
+}
 namespace snemo {
 
-  namespace datamodel {
-    class particle_track_data;
-  }
-
-  namespace geometry {
-    class locator_plugin;
-  }
-
   namespace reconstruction {
+
+    class gamma_clustering_driver;
 
     /// \brief The data processing module for the gamma clustering
     class gamma_clustering_module : public dpp::base_module
     {
 
     public:
-      /// Typedef for list of geom ids
-      typedef std::vector<geomtools::geom_id> gid_list_type;
 
-      /// Typedef for time ordered calorimeter hits aka. gamma cluster
-      typedef std::map<double, const snemo::datamodel::calibrated_data::calorimeter_hit_handle_type> cluster_type;
+      /// Setting geometry manager
+      void set_geometry_manager(const geomtools::manager & gmgr_);
 
-      /// Typedef for collection of clusters
-      typedef std::vector<cluster_type> cluster_collection_type;
+      /// Getting geometry manager
+      const geomtools::manager & get_geometry_manager() const;
 
       /// Constructor
       gamma_clustering_module(datatools::logger::priority = datatools::logger::PRIO_FATAL);
@@ -89,39 +78,16 @@ namespace snemo {
     protected:
 
       /// Special method to process and generate particle track data
-      void _process(snemo::datamodel::particle_track_data & ptd_);
+      void _process(datatools::things & data_);
 
       /// Give default values to specific class members.
       void _set_defaults ();
 
-      /// Get calorimeter neighbours given teh current calorimeter hit
-      void _get_geometrical_neighbours(const snemo::datamodel::calibrated_calorimeter_hit & hit_,
-                                       const snemo::datamodel::calibrated_data::calorimeter_hit_collection_type & hits_,
-                                       cluster_type & cluster_,
-                                       gid_list_type & registered_calos_) const;
-
-      /// Split calorimeter cluster given a cluster time range value
-      void _get_time_neighbours(cluster_type & cluster_, cluster_collection_type & clusters_) const;
-
-      /// Associate clusters given Time-Of-Flight calculation
-      void _get_tof_association(const cluster_collection_type & from_clusters_,
-                                cluster_collection_type & to_clusters_) const;
-
-      double _get_tof_probability(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                                  const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
-
-      bool _are_on_same_wall(const snemo::datamodel::calibrated_calorimeter_hit & head_end_calo_hit,
-                             const snemo::datamodel::calibrated_calorimeter_hit & tail_begin_calo_hit) const;
-
     private:
 
-      std::string _PTD_label_;                                  //!< The label of the input/output  data bank
-      const snemo::geometry::locator_plugin * _locator_plugin_; //!< The locator plugin
-
-      double _cluster_time_range_;     //!< The time condition for clustering
-      std::string _cluster_grid_mask_; //!< The spatial condition for clustering
-      double _min_prob_;     //!< The minimal probability required between clusters
-      double _sigma_good_calo_;     //!< The minimal probability required between clusters
+      const geomtools::manager * _geometry_manager_; //!< The geometry manager
+      std::string _PTD_label_;                       //!< The label of the input/output data bank
+      boost::scoped_ptr< ::snemo::reconstruction::gamma_clustering_driver> _driver_; //!< Handle to the embedded fitter algorithm with dynamic memory auto-deletion
 
       // Macro to automate the registration of the module :
       DPP_MODULE_REGISTRATION_INTERFACE(gamma_clustering_module);
