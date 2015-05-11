@@ -94,20 +94,6 @@ namespace snemo {
         set_geometry_manager(Geo.get_geom_manager());
       }
 
-      // // Geometry manager :
-      // std::string geo_label = snemo::processing::service_info::default_geometry_service_label();
-      // if (setup_.has_key("Geo_label")) {
-      //   geo_label = setup_.fetch_string("Geo_label");
-      // }
-      // DT_THROW_IF(geo_label.empty(), std::logic_error,
-      //             "Module '" << get_name() << "' has no valid '" << "Geo_label" << "' property !");
-      // DT_THROW_IF(! service_manager_.has(geo_label) ||
-      //             ! service_manager_.is_a<geomtools::geometry_service>(geo_label),
-      //             std::logic_error,
-      //             "Module '" << get_name() << "' has no '" << geo_label << "' service !");
-      // geomtools::geometry_service & Geo
-      //   = service_manager_.get<geomtools::geometry_service>(geo_label);
-
       // Gamma clustering algorithm :
       DT_THROW_IF(!setup_.has_key("driver"), std::logic_error, "Missing 'driver' algorithm");
       const std::string algorithm_id = setup_.fetch_string("driver");
@@ -158,23 +144,6 @@ namespace snemo {
       DT_THROW_IF(! is_initialized(), std::logic_error,
                   "Module '" << get_name() << "' is not initialized !");
 
-      // /*********************************
-      //  * Check particle track data     *
-      //  *********************************/
-      // snemo::datamodel::particle_track_data * ptr_particle_track_data = 0;
-      // if (! data_record_.has(_PTD_label_)) {
-      //   ptr_particle_track_data
-      //     = &(data_record_.add<snemo::datamodel::particle_track_data>(_PTD_label_));
-      // } else {
-      //   ptr_particle_track_data
-      //     = &(data_record_.grab<snemo::datamodel::particle_track_data>(_PTD_label_));
-      // }
-      // snemo::datamodel::particle_track_data & ptd = *ptr_particle_track_data;
-
-      /********************
-       * Process the data *
-       ********************/
-
       // Main processing method :
       _process(data_record_);
 
@@ -185,9 +154,6 @@ namespace snemo {
     {
       DT_LOG_TRACE(get_logging_priority(), "Entering...");
 
-      /*********************************
-       * Check particle track data     *
-       *********************************/
       snemo::datamodel::particle_track_data * ptr_particle_track_data = 0;
       if (! data_record_.has(_PTD_label_)) {
         ptr_particle_track_data
@@ -197,10 +163,6 @@ namespace snemo {
           = &(data_record_.grab<snemo::datamodel::particle_track_data>(_PTD_label_));
       }
       snemo::datamodel::particle_track_data & ptd = *ptr_particle_track_data;
-
-      /********************
-       * Process the data *
-       ********************/
 
       // process the fitter driver :
       _driver_.get()->process(ptd);

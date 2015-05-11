@@ -36,29 +36,11 @@
 // Third party:
 // - Bayeux/dpp :
 #include <dpp/base_module.h>
-// - Bayeux/geomtools:
-#include <geomtools/geom_id.h>
-
-// - Bayeux/datatools:
-#include <datatools/logger.h>
-#include <datatools/properties.h>
-
-// This project:
-#include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
-#include <falaise/snemo/datamodels/calibrated_data.h>
 
 namespace geomtools {
   class manager;
 }
 namespace snemo {
-
-  namespace datamodel {
-    class particle_track_data;
-  }
-
-  namespace geometry {
-    class locator_plugin;
-  }
 
   namespace reconstruction {
 
@@ -104,7 +86,7 @@ namespace snemo {
     private:
 
       const geomtools::manager * _geometry_manager_; //!< The geometry manager
-      std::string _PTD_label_;                                  //!< The label of the input/output data bank
+      std::string _PTD_label_;                       //!< The label of the input/output data bank
       boost::scoped_ptr< ::snemo::reconstruction::gamma_clustering_driver> _driver_; //!< Handle to the embedded fitter algorithm with dynamic memory auto-deletion
 
       // Macro to automate the registration of the module :
