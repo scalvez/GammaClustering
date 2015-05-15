@@ -60,7 +60,7 @@ namespace snemo {
       _cluster_time_range_ = 6 * CLHEP::ns;
       _cluster_grid_mask_ = "first";
       _min_prob_ = 1e-3 * CLHEP::perCent;
-      _sigma_good_calo_ = 2.5 * CLHEP::ns;
+      _sigma_time_good_calo_ = 2.5 * CLHEP::ns;
       return;
     }
 
@@ -92,10 +92,10 @@ namespace snemo {
         }
       }
 
-      if (gc_setup.has_key(key = "sigma_good_calo")) {
-        _sigma_good_calo_ = gc_setup.fetch_real(key);
+      if (gc_setup.has_key(key = "sigma_time_good_calo")) {
+        _sigma_time_good_calo_ = gc_setup.fetch_real(key);
         if (! gc_setup.has_explicit_unit(key)) {
-          _sigma_good_calo_ *= CLHEP::ns;
+          _sigma_time_good_calo_ *= CLHEP::ns;
         }
       }
 
@@ -365,7 +365,7 @@ namespace snemo {
         // The algo tries to find a tail to a head
         for (; it_head != a_cluster.rend(); ++it_head) {
           const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_head->second.get();
-          if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
+          if (a_calo.get_sigma_time() < _sigma_time_good_calo_) break;
         }
         if (it_head == a_cluster.rend()) it_head = a_cluster.rbegin();
 
@@ -381,7 +381,7 @@ namespace snemo {
 
           for (; it_tail != next_cluster.end(); ++it_tail) {
             const snemo::datamodel::calibrated_calorimeter_hit & a_calo = it_tail->second.get();
-            if (a_calo.get_sigma_time() < _sigma_good_calo_) break;
+            if (a_calo.get_sigma_time() < _sigma_time_good_calo_) break;
           }
           if (it_tail == next_cluster.end()) it_tail = next_cluster.begin();
 
@@ -580,7 +580,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.cluster_time_range")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Clustering time range between calorimetr hits")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(6 * CLHEP::ns, "ns")
@@ -597,7 +597,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.cluster_grid_mask")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Neighbouring rule to cluster calorimeter hits")
           .set_traits(datatools::TYPE_STRING)
           .set_mandatory(false)
           .set_default_value_string("first")
@@ -614,7 +614,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.minimal_probability")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Minimal TOF probability to link gamma clusters")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(1e-3 * CLHEP::perCent, "%")
@@ -626,19 +626,19 @@ namespace snemo {
           ;
       }
       {
-        // Description of the 'GC.sigma_good_calo' configuration property :
+        // Description of the 'GC.sigma_time_good_calo' configuration property :
         datatools::configuration_property_description & cpd
           = ocd_.add_property_info();
-        cpd.set_name_pattern("GC.sigma_good_calo")
+        cpd.set_name_pattern("GC.sigma_time_good_calo")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Minimal time resolution to consider calorimeter hit")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(2.5 * CLHEP::ns, "ns")
-          .add_example("Use the default value::                      \n"
-                       "                                             \n"
-                       "  GC.sigma_good_calo : real as time = 2.5 ns \n"
-                       "                                             \n"
+          .add_example("Use the default value::                           \n"
+                       "                                                  \n"
+                       "  GC.sigma_time_good_calo : real as time = 2.5 ns \n"
+                       "                                                  \n"
                        )
           ;
       }

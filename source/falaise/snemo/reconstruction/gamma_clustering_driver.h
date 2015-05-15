@@ -107,7 +107,7 @@ namespace snemo {
       double _cluster_time_range_;     //!< The time condition for clustering
       std::string _cluster_grid_mask_; //!< The spatial condition for clustering
       double _min_prob_;               //!< The minimal probability required between clusters
-      double _sigma_good_calo_;        //!< The minimal probability required between clusters
+      double _sigma_time_good_calo_;   //!< The minimal time resolution to consider calorimeter hit
     };
 
   }  // end of namespace reconstruction
