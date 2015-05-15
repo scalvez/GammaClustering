@@ -479,7 +479,6 @@ namespace snemo {
       }
 
       if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
-        DT_LOG_TRACE(get_logging_priority(), "=============================================");
         for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
           const cluster_type & a_gamma = the_reconstructed_gammas.at(i);
           DT_LOG_TRACE(get_logging_priority(), "Gamma #" << i
