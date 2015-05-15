@@ -580,7 +580,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.cluster_time_range")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Set the maximal time difference allowed between two calorimeter hits of a same cluster")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(6 * CLHEP::ns, "ns")
@@ -597,7 +597,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.cluster_grid_mask")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Set the geometrical conditions where to look for neighbours")
           .set_traits(datatools::TYPE_STRING)
           .set_mandatory(false)
           .set_default_value_string("first")
@@ -631,7 +631,7 @@ namespace snemo {
           = ocd_.add_property_info();
         cpd.set_name_pattern("GC.sigma_good_calo")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
-          .set_terse_description("")
+          .set_terse_description("Set the time uncertainty below which a hit is considered a good calorimeter hit")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(2.5 * CLHEP::ns, "ns")
