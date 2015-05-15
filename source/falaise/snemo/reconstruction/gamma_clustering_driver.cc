@@ -657,10 +657,12 @@ DOCD_CLASS_IMPLEMENT_LOAD_BEGIN(snemo::reconstruction::gamma_clustering_driver, 
   ocd_.set_class_name("snemo::reconstruction::gamma_clustering_driver");
   ocd_.set_class_description("A driver class for the Gamma Clustering algorithm");
   ocd_.set_class_library("Falaise_GammaClustering");
-  ocd_.set_class_documentation("The driver manager for the Gamma Clustering algorithms\n"
-                               "/todo What does the manager do ?"
+  ocd_.set_class_documentation("The driver does the gammas clusterization and given gamma clusters, \n"
+                               "join them if Time-Of-Flight measurements allow such association.    \n"
                                );
 
+  // Invoke specific OCD support :
+  ::snemo::reconstruction::gamma_clustering_driver::init_ocd(ocd_);
 
   ocd_.set_validation_support(true);
   ocd_.lock();

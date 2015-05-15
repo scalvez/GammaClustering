@@ -182,9 +182,8 @@ DOCD_CLASS_IMPLEMENT_LOAD_BEGIN(snemo::reconstruction::gamma_clustering_module, 
   ocd_.set_class_name("snemo::reconstruction::gamma_clustering_module");
   ocd_.set_class_description("A module that performs the gamma clustering using the Gamma_Clustering algorithm");
   ocd_.set_class_library("Falaise_GammaClustering");
-  ocd_.set_class_documentation("This module uses the Gamma Clustering algorithms for.   \n"
-                               "gamma involved in non associated calorimeter hits. See also OCD   \n"
-                               "support for the ``snemo::reconstruction::gamma_clustering_driver`` class. \n");
+  ocd_.set_class_documentation("This module uses the Gamma Clustering algorithms for  \n"
+                               "gamma involved in non associated calorimeter hits");
 
   dpp::base_module::common_ocd(ocd_);
 
@@ -230,16 +229,21 @@ DOCD_CLASS_IMPLEMENT_LOAD_BEGIN(snemo::reconstruction::gamma_clustering_module, 
       ;
   }
 
+  // Invoke specific OCD support from the driver class:
+  ::snemo::reconstruction::gamma_clustering_driver::init_ocd(ocd_);
+
   // Additionnal configuration hints :
-  ocd_.set_configuration_hints("Here is a full configuration example in the      \n"
-                               "``datatools::properties`` ASCII format::         \n"
-                               "                                         \n"
-                               "  PTD_label : string = \"PTD\"           \n"
-                               "  Geo_label : string = \"geometry\"      \n"
-                               "                                         \n"
-                               "Additional specific parameters are used to configure         \n"
-                               "the embedded ``Gamma_Clustering`` driver itself; see the OCD support \n"
-                               "of the ``snemo::reconstruction::gamma_clustering_driver`` class.     \n"
+  ocd_.set_configuration_hints("Here is a full configuration example in the                        \n"
+                               "``datatools::properties`` ASCII format::                           \n"
+                               "                                                                   \n"
+                               "  PTD_label : string = \"PTD\"                                     \n"
+                               "  Geo_label : string = \"geometry\"                                \n"
+                               "  BGB.add_foil_vertex_extrapolation : boolean = 1                  \n"
+                               "  BGB.add_foil_vertex_minimal_probability : real as fraction = 1 % \n"
+                               "  driver : string = \"GC\"                                         \n"
+                               "  GC.cluster_time_range : real as time = 2.5 ns                    \n"
+                               "  GC.cluster_grid_mask : string = \"first\"                        \n"
+                               "                                                                   \n"
                                );
 
   ocd_.set_validation_support(true);
