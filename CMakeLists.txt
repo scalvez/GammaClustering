@@ -45,9 +45,9 @@ endif()
 # Install it:
 install(TARGETS Falaise_GammaClustering DESTINATION ${CMAKE_INSTALL_LIBDIR}/Falaise/modules)
 
-# # Test support:
-# option(FalaiseGammaClusteringPlugin_ENABLE_TESTING "Build unit testing system for FalaiseGammaClustering" ON)
-# if(FalaiseGammaClusteringPlugin_ENABLE_TESTING)
-#   enable_testing()
-#   add_subdirectory(testing)
-# endif()
+# Test support:
+option(FalaiseGammaClusteringPlugin_ENABLE_TESTING "Build unit testing system for FalaiseGammaClustering" ON)
+if(FalaiseGammaClusteringPlugin_ENABLE_TESTING)
+  enable_testing()
+  add_subdirectory(testing)
+endif()

@@ -289,6 +289,7 @@ namespace snemo {
       for (gid_list_type::const_iterator ineighbour = the_neighbours.begin();
            ineighbour != the_neighbours.end(); ++ineighbour) {
         const geomtools::geom_id & a_gid = *ineighbour;
+        DT_LOG_TRACE(get_logging_priority(), "Neighbour geom_id " << a_gid);
         if (std::find(registered_calos_.begin(), registered_calos_.end(), a_gid)
             != registered_calos_.end()) {
           continue;
@@ -468,7 +469,7 @@ namespace snemo {
       if (get_logging_priority() >= datatools::logger::PRIO_TRACE) {
         for (size_t i = 0; i < the_reconstructed_clusters.size(); ++i) {
           const cluster_type & a_cluster = the_reconstructed_clusters.at(i);
-          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
+          DT_LOG_TRACE(get_logging_priority(), "Cluster #" << i
                        << " (" << a_cluster.size() << " associated calorimeters)");
           for (cluster_type::const_iterator j = a_cluster.begin(); j != a_cluster.end(); ++j) {
             const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
@@ -481,7 +482,7 @@ namespace snemo {
         DT_LOG_TRACE(get_logging_priority(), "=============================================");
         for (size_t i = 0; i < the_reconstructed_gammas.size(); ++i) {
           const cluster_type & a_gamma = the_reconstructed_gammas.at(i);
-          DT_LOG_TRACE(get_logging_priority(), "New gamma cluster #" << i
+          DT_LOG_TRACE(get_logging_priority(), "Gamma #" << i
                        << " (" << a_gamma.size() << " associated calorimeters)");
           for (cluster_type::const_iterator j = a_gamma.begin(); j != a_gamma.end(); ++j) {
             const snemo::datamodel::calibrated_calorimeter_hit & a_calo_hit = j->second.get();
