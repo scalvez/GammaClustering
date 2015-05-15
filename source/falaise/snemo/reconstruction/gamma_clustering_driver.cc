@@ -8,14 +8,13 @@
 #include <sstream>
 
 // Third party:
-// - Bayeux/datatools:
-#include <datatools/service_manager.h>
-// - Bayeux/geomtools:
-#include <geomtools/geometry_service.h>
-#include <bayeux/geomtools/manager.h>
-
 //- GSL:
 #include <gsl/gsl_cdf.h>
+// - Bayeux/datatools:
+#include <bayeux/datatools/service_manager.h>
+// - Bayeux/geomtools:
+#include <bayeux/geomtools/geometry_service.h>
+#include <bayeux/geomtools/manager.h>
 
 // This project:
 #include <falaise/snemo/datamodels/data_model.h>
@@ -85,7 +84,7 @@ namespace snemo {
         _cluster_grid_mask_ = gc_setup.fetch_string(key);
       }
 
-      if (gc_setup.has_key(key = "minimal_probability")) {
+      if (gc_setup.has_key(key = "minimal_internal_probability")) {
         _min_prob_ = gc_setup.fetch_real(key);
         if (! gc_setup.has_explicit_unit(key)) {
           _min_prob_ *= CLHEP::perCent;
@@ -609,19 +608,19 @@ namespace snemo {
           ;
       }
       {
-        // Description of the 'GC.minimal_probability' configuration property :
+        // Description of the 'GC.minimal_internal_probability' configuration property :
         datatools::configuration_property_description & cpd
           = ocd_.add_property_info();
-        cpd.set_name_pattern("GC.minimal_probability")
+        cpd.set_name_pattern("GC.minimal_internal_probability")
           .set_from("snemo::reconstruction::gamma_clustering_driver")
           .set_terse_description("Minimal TOF probability to link gamma clusters")
           .set_traits(datatools::TYPE_REAL)
           .set_mandatory(false)
           .set_default_value_real(1e-3 * CLHEP::perCent, "%")
-          .add_example("Use the default value::                             \n"
-                       "                                                    \n"
-                       "  GC.minimal_probability : real as fraction = 1e-3% \n"
-                       "                                                    \n"
+          .add_example("Use the default value::                                      \n"
+                       "                                                             \n"
+                       "  GC.minimal_internal_probability : real as fraction = 1e-3% \n"
+                       "                                                             \n"
                        )
           ;
       }
